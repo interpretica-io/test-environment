@@ -1,0 +1,1100 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Copyright (C) 2025 Interpretica, Unipessoal Lda. All rights reserved. */
+/** @file
+ * @brief WiFi agent library
+ *
+ * Basic WiFi agent tree implementation.
+ */
+
+#define TE_LGR_USER "TA WiFi"
+
+#include "te_config.h"
+
+#include "te_alloc.h"
+#include "te_str.h"
+#include "te_string.h"
+#include "logger_api.h"
+#include "te_queue.h"
+#include "tq_string.h"
+#include "te_enum.h"
+#include "rcf_pch.h"
+#include "ta_wifi.h"
+#include "ta_wifi_internal.h"
+#include "ta_wifi_uci.h"
+
+static te_errno ta_unix_conf_wifi_apply(void);
+static te_errno ta_unix_conf_wifi_cancel(void);
+
+/** Mapping of supported WiFi standards */
+static const te_enum_map wifi_standard_mapping[] = {
+    { .name = "g", .value = TA_WIFI_STANDARD_G },
+    { .name = "n", .value = TA_WIFI_STANDARD_N },
+    { .name = "ac", .value = TA_WIFI_STANDARD_AC },
+    { .name = "ax", .value = TA_WIFI_STANDARD_AX },
+    TE_ENUM_MAP_END
+};
+
+/** Mapping of supported WiFi security */
+static const te_enum_map wifi_security_mapping[] = {
+    { .name = "open", .value = TA_WIFI_SECURITY_OPEN },
+    { .name = "wpa", .value = TA_WIFI_SECURITY_WPA },
+    { .name = "wpa2", .value = TA_WIFI_SECURITY_WPA2 },
+    { .name = "wpa3", .value = TA_WIFI_SECURITY_WPA3 },
+    TE_ENUM_MAP_END
+};
+
+/** Mapping of supported WiFi modes */
+static const te_enum_map wifi_mode_mapping[] = {
+    { .name = "ap", .value = TA_WIFI_MODE_AP },
+    { .name = "sta", .value = TA_WIFI_MODE_STA },
+    TE_ENUM_MAP_END
+};
+
+/** Mapping of supported WiFi configurators */
+static const te_enum_map wifi_configurator_mapping[] = {
+    { .name = "hostapd_wpa_supplicant", .value = TA_WIFI_CFG_HOSTAPD_WPA_SUPPLICANT },
+    { .name = "uci", .value = TA_WIFI_CFG_UCI },
+    TE_ENUM_MAP_END
+};
+
+/** Mapping of supported WiFi protocols */
+static const te_enum_map wifi_protocol_mapping[] = {
+    { .name = "ccmp", .value = TA_WIFI_PROTOCOL_CCMP },
+    { .name = "tkip", .value = TA_WIFI_PROTOCOL_TKIP },
+    TE_ENUM_MAP_END
+};
+
+static te_errno
+node_wifi_ssid_passphrase_get(unsigned int gid, const char *oid, char *value,
+    const char *empty, const char *port_name, const char *ssid_name)
+{
+    ta_wifi_ssid *ssid;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    ssid = ta_wifi_port_find_ssid(ta_wifi_find_port(port_name), ssid_name);
+    if (ssid == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    snprintf(value, RCF_MAX_VAL, "%s",
+        ssid->passphrase != NULL ? ssid->passphrase : "");
+    return 0;
+}
+
+static te_errno
+node_wifi_ssid_passphrase_set(unsigned int gid, const char *oid, char *value,
+    const char *empty, const char *port_name, const char *ssid_name)
+{
+    ta_wifi_ssid *ssid;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    ssid = ta_wifi_port_find_ssid(ta_wifi_find_port(port_name), ssid_name);
+    if (ssid == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    free(ssid->passphrase);
+    ssid->passphrase = TE_STRDUP(value);
+    return 0;
+}
+
+static te_errno
+node_wifi_ssid_mode_get(unsigned int gid, const char *oid, char *value,
+    const char *empty, const char *port_name, const char *ssid_name)
+{
+    te_errno rc;
+    ta_wifi_ssid *ssid;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    ssid = ta_wifi_port_find_ssid(ta_wifi_find_port(port_name), ssid_name);
+    if (ssid == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    rc = te_snprintf(value, RCF_MAX_VAL, "%s",
+             te_enum_map_from_value(wifi_mode_mapping, ssid->mode));
+    return TE_RC_UPSTREAM(TE_TA_UNIX, rc);
+}
+
+static te_errno
+node_wifi_ssid_mode_set(unsigned int gid, const char *oid, char *value,
+    const char *empty, const char *port_name, const char *ssid_name)
+{
+    ta_wifi_ssid *ssid;
+    int mapped;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    ssid = ta_wifi_port_find_ssid(ta_wifi_find_port(port_name), ssid_name);
+    if (ssid == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    mapped = te_enum_map_from_str(wifi_mode_mapping, value, -1);
+    if (mapped < 0)
+        return TE_RC(TE_TA_UNIX, TE_EINVAL);
+
+    ssid->mode = mapped;
+    return 0;
+}
+
+static te_errno
+node_wifi_ssid_security_get(unsigned int gid, const char *oid, char *value,
+    const char *empty, const char *port_name, const char *ssid_name)
+{
+    te_errno rc;
+    ta_wifi_ssid *ssid;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    ssid = ta_wifi_port_find_ssid(ta_wifi_find_port(port_name), ssid_name);
+    if (ssid == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    rc = te_snprintf(value, RCF_MAX_VAL, "%s",
+             te_enum_map_from_value(wifi_security_mapping, ssid->security));
+    return TE_RC_UPSTREAM(TE_TA_UNIX, rc);
+}
+
+static te_errno
+node_wifi_ssid_security_set(unsigned int gid, const char *oid, char *value,
+    const char *empty, const char *port_name, const char *ssid_name)
+{
+    ta_wifi_ssid *ssid;
+    int mapped;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    ssid = ta_wifi_port_find_ssid(ta_wifi_find_port(port_name), ssid_name);
+    if (ssid == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    mapped = te_enum_map_from_str(wifi_security_mapping, value, -1);
+    if (mapped < 0)
+        return TE_RC(TE_TA_UNIX, TE_EINVAL);
+
+    ssid->security = mapped;
+    return 0;
+}
+
+static te_errno
+node_wifi_ssid_protocol_get(unsigned int gid, const char *oid, char *value,
+    const char *empty, const char *port_name, const char *ssid_name)
+{
+    te_errno rc;
+    ta_wifi_ssid *ssid;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    ssid = ta_wifi_port_find_ssid(ta_wifi_find_port(port_name), ssid_name);
+    if (ssid == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    rc = te_snprintf(value, RCF_MAX_VAL, "%s",
+             te_enum_map_from_value(wifi_protocol_mapping, ssid->protocol));
+    return TE_RC_UPSTREAM(TE_TA_UNIX, rc);
+}
+
+static te_errno
+node_wifi_ssid_protocol_set(unsigned int gid, const char *oid, char *value,
+    const char *empty, const char *port_name, const char *ssid_name)
+{
+    ta_wifi_ssid *ssid;
+    int mapped;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    ssid = ta_wifi_port_find_ssid(ta_wifi_find_port(port_name), ssid_name);
+    if (ssid == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    mapped = te_enum_map_from_str(wifi_protocol_mapping, value, -1);
+    if (mapped < 0)
+        return TE_RC(TE_TA_UNIX, TE_EINVAL);
+
+    ssid->protocol = mapped;
+    return 0;
+}
+
+static te_errno
+node_wifi_ssid_aname_get(unsigned int gid, const char *oid, char *value,
+    const char *empty, const char *port_name, const char *ssid_name)
+{
+    ta_wifi_ssid *ssid;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    ssid = ta_wifi_port_find_ssid(ta_wifi_find_port(port_name), ssid_name);
+    if (ssid == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    snprintf(value, RCF_MAX_VAL, "%s",
+        ssid->aname != NULL ? ssid->aname : "");
+    return 0;
+}
+
+static te_errno
+node_wifi_ssid_aname_set(unsigned int gid, const char *oid, char *value,
+    const char *empty, const char *port_name, const char *ssid_name)
+{
+    ta_wifi_ssid *ssid;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    ssid = ta_wifi_port_find_ssid(ta_wifi_find_port(port_name), ssid_name);
+    if (ssid == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    free(ssid->aname);
+    ssid->aname = TE_STRDUP(value);
+    return 0;
+}
+
+static te_errno
+node_wifi_port_ssid_add(unsigned int gid, const char *oid, const char *value,
+    const char *empty, const char *port_name, const char *ssid_name)
+{
+    ta_wifi_port *port;
+    ta_wifi_ssid *ssid;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(value);
+    UNUSED(empty);
+
+    if ((port = ta_wifi_find_port(port_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    if (ta_wifi_port_find_ssid(port, ssid_name) != NULL)
+        return TE_RC(TE_TA_UNIX, TE_EEXIST);
+
+    ssid = TE_ALLOC(sizeof(*ssid));
+
+    ssid->name = TE_STRDUP(ssid_name);
+    ssid->security = TA_WIFI_SECURITY_WPA2;
+    ssid->protocol = TA_WIFI_PROTOCOL_CCMP;
+
+    SLIST_INSERT_HEAD(&port->ssids, ssid, links);
+    return 0;
+}
+
+static te_errno
+node_wifi_port_ssid_del(unsigned int gid, const char *oid,
+    const char *empty, const char *port_name, const char *ssid_name)
+{
+    ta_wifi_port *port;
+    ta_wifi_ssid *ssid;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    if ((port = ta_wifi_find_port(port_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    if ((ssid = ta_wifi_port_find_ssid(port, ssid_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    SLIST_REMOVE(&port->ssids, ssid, ta_wifi_ssid, links);
+
+    ta_wifi_ssid_free(ssid);
+    return 0;
+}
+
+static te_errno
+node_wifi_port_ssid_list(unsigned int gid, const char *oid, const char *sub_id,
+    char **list, const char *empty, const char *port_name)
+{
+    ta_wifi_port *port;
+    ta_wifi_ssid *ssid;
+    te_string str = TE_STRING_INIT;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(sub_id);
+    UNUSED(empty);
+
+    if ((port = ta_wifi_find_port(port_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    SLIST_FOREACH(ssid, &port->ssids, links)
+    {
+        te_string_append(&str, "%s%s",
+                         (str.ptr != NULL) ? " " : "", ssid->name);
+    }
+
+    *list = str.ptr;
+    return 0;
+}
+
+/** Set custom option value */
+static te_errno
+node_wifi_port_option_value_set(unsigned int gid, const char *oid, const char *value,
+                      const char *empty, const char *port_name, const char *option_name)
+{
+    ta_wifi_port *port;
+    ta_wifi_option *option;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(value);
+    UNUSED(empty);
+
+    if ((port = ta_wifi_find_port(port_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    if ((option = ta_wifi_port_find_option(port, option_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    strcpy(option->value, value);
+
+    return 0;
+}
+
+/** Get custom option value */
+static te_errno
+node_wifi_port_option_value_get(unsigned int gid, const char *oid, char *value,
+                      const char *empty,
+                      const char *port_name,
+                      const char *option_name)
+{
+    ta_wifi_port *port;
+    ta_wifi_option *option;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(value);
+    UNUSED(empty);
+
+    if ((port = ta_wifi_find_port(port_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    if ((option = ta_wifi_port_find_option(port, option_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    strcpy(value, option->value);
+
+    return 0;
+}
+
+static te_errno
+node_wifi_port_option_add(unsigned int gid, const char *oid, const char *value,
+    const char *empty, const char *port_name, const char *option_name)
+{
+    ta_wifi_port *port;
+    ta_wifi_option *option;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(value);
+    UNUSED(empty);
+
+    if ((port = ta_wifi_find_port(port_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    if (ta_wifi_port_find_option(port, option_name) != NULL)
+        return TE_RC(TE_TA_UNIX, TE_EEXIST);
+
+    option = TE_ALLOC(sizeof(*option));
+
+    option->name = TE_STRDUP(option_name);
+    option->value = TE_STRDUP(value);
+
+    SLIST_INSERT_HEAD(&port->options, option, links);
+    return 0;
+}
+
+static te_errno
+node_wifi_port_option_del(unsigned int gid, const char *oid,
+    const char *empty, const char *port_name, const char *option_name)
+{
+    ta_wifi_port *port;
+    ta_wifi_option *option;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    if ((port = ta_wifi_find_port(port_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    if ((option = ta_wifi_port_find_option(port, option_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    SLIST_REMOVE(&port->options, option, ta_wifi_option, links);
+
+    ta_wifi_option_free(option);
+    return 0;
+}
+
+static te_errno
+node_wifi_port_option_list(unsigned int gid, const char *oid, const char *sub_id,
+    char **list, const char *empty, const char *port_name)
+{
+    ta_wifi_port *port;
+    ta_wifi_option *option;
+    te_string str = TE_STRING_INIT;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(sub_id);
+    UNUSED(empty);
+
+    if ((port = ta_wifi_find_port(port_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    SLIST_FOREACH(option, &port->options, links)
+    {
+        te_string_append(&str, "%s%s",
+                         (str.ptr != NULL) ? " " : "", option->name);
+    }
+
+    *list = str.ptr;
+    return 0;
+}
+
+
+/** Set custom option value */
+static te_errno
+node_wifi_ssid_option_value_set(unsigned int gid, const char *oid, const char *value,
+                      const char *empty,
+                      const char *port_name,
+                      const char *ssid_name,
+                      const char *option_name)
+{
+    ta_wifi_port *port;
+    ta_wifi_ssid *ssid;
+    ta_wifi_option *option;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(value);
+    UNUSED(empty);
+
+    if ((port = ta_wifi_find_port(port_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    if ((ssid = ta_wifi_port_find_ssid(port, ssid_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    if ((option = ta_wifi_ssid_find_option(ssid, option_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    strcpy(option->value, value);
+
+    return 0;
+}
+
+/** Get custom option value */
+static te_errno
+node_wifi_ssid_option_value_get(unsigned int gid, const char *oid, char *value,
+                      const char *empty,
+                      const char *port_name,
+                      const char *ssid_name,
+                      const char *option_name)
+{
+    ta_wifi_port *port;
+    ta_wifi_ssid *ssid;
+    ta_wifi_option *option;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(value);
+    UNUSED(empty);
+
+    if ((port = ta_wifi_find_port(port_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    if ((ssid = ta_wifi_port_find_ssid(port, ssid_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    if ((option = ta_wifi_ssid_find_option(ssid, option_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    strcpy(value, option->value);
+
+    return 0;
+}
+
+static te_errno
+node_wifi_ssid_option_add(unsigned int gid, const char *oid, const char *value,
+    const char *empty,
+    const char *port_name,
+    const char *ssid_name,
+    const char *option_name)
+{
+    ta_wifi_port *port;
+    ta_wifi_ssid *ssid;
+    ta_wifi_option *option;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(value);
+    UNUSED(empty);
+
+    if ((port = ta_wifi_find_port(port_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    if ((ssid = ta_wifi_port_find_ssid(port, ssid_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    if (ta_wifi_ssid_find_option(ssid, option_name) != NULL)
+        return TE_RC(TE_TA_UNIX, TE_EEXIST);
+
+    option = TE_ALLOC(sizeof(*option));
+
+    option->name = TE_STRDUP(option_name);
+    strcpy(option->value, value);
+
+    SLIST_INSERT_HEAD(&ssid->options, option, links);
+    return 0;
+}
+
+static te_errno
+node_wifi_ssid_option_del(unsigned int gid, const char *oid,
+    const char *empty,
+    const char *port_name,
+    const char *ssid_name,
+    const char *option_name)
+{
+    ta_wifi_port *port;
+    ta_wifi_ssid *ssid;
+    ta_wifi_option *option;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    if ((port = ta_wifi_find_port(port_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    if ((ssid = ta_wifi_port_find_ssid(port, ssid_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    if ((option = ta_wifi_ssid_find_option(ssid, option_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    SLIST_REMOVE(&ssid->options, option, ta_wifi_option, links);
+
+    ta_wifi_option_free(option);
+    return 0;
+}
+
+static te_errno
+node_wifi_ssid_option_list(unsigned int gid, const char *oid, const char *sub_id,
+    char **list,
+    const char *empty,
+    const char *port_name,
+    const char *ssid_name)
+{
+    ta_wifi_port *port;
+    ta_wifi_ssid *ssid;
+    ta_wifi_option *option;
+    te_string str = TE_STRING_INIT;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(sub_id);
+    UNUSED(empty);
+
+    if ((port = ta_wifi_find_port(port_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    if ((ssid = ta_wifi_port_find_ssid(port, ssid_name)) == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    SLIST_FOREACH(option, &ssid->options, links)
+    {
+        te_string_append(&str, "%s%s",
+                         (str.ptr != NULL) ? " " : "", option->name);
+    }
+
+    *list = str.ptr;
+    return 0;
+}
+
+static te_errno
+node_wifi_port_frag_threshold_get(unsigned int gid, const char *oid,
+    char *value, const char *empty, const char *port_name)
+{
+    ta_wifi_port *port;
+    te_errno rc;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    ENTRY("%s", port_name);
+
+    port = ta_wifi_find_port(port_name);
+    if (port == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    rc = te_snprintf(value, RCF_MAX_VAL, "%u",
+             (unsigned int)port->frag_threshold);
+
+    return TE_RC_UPSTREAM(TE_TA_UNIX, rc);
+}
+
+static te_errno
+node_wifi_port_frag_threshold_set(unsigned int gid, const char *oid,
+    const char *value, const char *empty, const char *port_name)
+{
+    ta_wifi_port *port;
+    te_errno rc;
+    uint16_t val;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    ENTRY("%s", port_name);
+
+    port = ta_wifi_find_port(port_name);
+    if (port == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    rc = te_strtou_size(value, 0, &val,
+                        sizeof(val));
+    if (rc != 0)
+        return TE_RC(TE_TA_UNIX, rc);
+
+    if (val != 0 && (val < 256 || val > 2346))
+        return TE_RC(TE_TA_UNIX, TE_EINVAL);
+
+    port->frag_threshold = val;
+
+    return 0;
+}
+
+static te_errno
+node_wifi_port_channel_get(unsigned int gid, const char *oid, char *value,
+    const char *empty, const char *port_name)
+{
+    ta_wifi_port *port;
+    te_errno rc;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    ENTRY("%s", port_name);
+
+    port = ta_wifi_find_port(port_name);
+    if (port == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    rc = te_snprintf(value, RCF_MAX_VAL, "%u", (unsigned int)port->channel);
+    return TE_RC_UPSTREAM(TE_TA_UNIX, rc);
+}
+
+static te_errno
+node_wifi_port_channel_set(unsigned int gid, const char *oid, const char *value,
+    const char *empty, const char *port_name)
+{
+    ta_wifi_port *port;
+    te_errno rc;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    ENTRY("%s", port_name);
+
+    port = ta_wifi_find_port(port_name);
+    if (port == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    rc = te_strtou_size(value, 0, &port->channel,
+                        sizeof(port->channel));
+    return TE_RC_UPSTREAM(TE_TA_UNIX, rc);
+}
+
+static te_errno
+node_wifi_configurator_get(unsigned int gid, const char *oid, char *value,
+    const char *empty)
+{
+    te_errno rc;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    rc = te_snprintf(value, RCF_MAX_VAL, "%s",
+             te_enum_map_from_value(wifi_configurator_mapping,
+                                    ta_wifi_get_node()->configurator));
+    return TE_RC_UPSTREAM(TE_TA_UNIX, rc);
+}
+
+static te_errno
+node_wifi_configurator_set(unsigned int gid, const char *oid,
+    const char *value, const char *empty)
+{
+    int mapped;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    mapped = te_enum_map_from_str(wifi_configurator_mapping, value, -1);
+    if (mapped < 0)
+        return TE_RC(TE_TA_UNIX, TE_EINVAL);
+
+    ta_wifi_get_node()->configurator = mapped;
+    return 0;
+}
+
+static te_errno
+node_wifi_port_enable_get(unsigned int gid, const char *oid, char *value,
+    const char *empty, const char *port_name)
+{
+    ta_wifi_port *port;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    port = ta_wifi_find_port(port_name);
+    if (port == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    sprintf(value, "%d", port->enable ? 1 : 0);
+
+    return 0;
+}
+
+static te_errno
+node_wifi_port_enable_set(unsigned int gid, const char *oid,
+    const char *value, const char *empty, const char *port_name)
+{
+    ta_wifi_port *port;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    port = ta_wifi_find_port(port_name);
+    if (port == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    port->enable = (atoi(value) > 0) ? true : false;
+
+    return ta_unix_conf_wifi_apply();
+}
+
+static te_errno
+node_wifi_port_ifname_get(unsigned int gid, const char *oid, char *value,
+    const char *empty, const char *port_name)
+{
+    ta_wifi_port *port;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    port = ta_wifi_find_port(port_name);
+    if (port == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    if (port->ifname != NULL)
+        strcpy(value, port->ifname);
+    else
+        strcpy(value, "");
+
+    return 0;
+}
+
+static te_errno
+node_wifi_port_ifname_set(unsigned int gid, const char *oid,
+    const char *value, const char *empty, const char *port_name)
+{
+    ta_wifi_port *port;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    port = ta_wifi_find_port(port_name);
+    if (port == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    port->ifname = strdup(value);
+    if (port->ifname == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOMEM);
+
+    return 0;
+}
+
+static te_errno
+node_wifi_port_standard_get(unsigned int gid, const char *oid, char *value,
+    const char *empty, const char *port_name)
+{
+    ta_wifi_port *port;
+    te_errno rc;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    port = ta_wifi_find_port(port_name);
+    if (port == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    rc = te_snprintf(value, RCF_MAX_VAL, "%s",
+             te_enum_map_from_value(wifi_standard_mapping, port->standard));
+    return TE_RC_UPSTREAM(TE_TA_UNIX, rc);
+}
+
+static te_errno
+node_wifi_port_standard_set(unsigned int gid, const char *oid,
+    const char *value, const char *empty, const char *port_name)
+{
+    ta_wifi_port *port;
+    int mapped;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    port = ta_wifi_find_port(port_name);
+    if (port == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    mapped = te_enum_map_from_str(wifi_standard_mapping, value, -1);
+    if (mapped < 0)
+        return TE_RC(TE_TA_UNIX, TE_EINVAL);
+
+    port->standard = mapped;
+    return 0;
+}
+
+static te_errno
+port_add(unsigned int gid, const char *oid, const char *value,
+    const char *empty, const char *name)
+{
+    ta_wifi_port *port;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(value);
+    UNUSED(empty);
+
+    ENTRY("%s", name);
+
+    port = ta_wifi_find_port(name);
+    if (port != NULL)
+    {
+        ERROR("WiFi port with such name already exists: '%s'", name);
+        return TE_RC(TE_TA_UNIX, TE_EEXIST);
+    }
+
+    port = TE_ALLOC(sizeof(*port));
+
+    port->name = TE_STRDUP(name);
+    port->standard = TA_WIFI_STANDARD_G;
+    SLIST_INIT(&port->ssids);
+
+    SLIST_INSERT_HEAD(&ta_wifi_get_node()->ports, port, links);
+
+    return 0;
+}
+
+static te_errno
+port_del(unsigned int gid, const char *oid,
+    const char *empty, const char *name)
+{
+    ta_wifi_port *port;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    ENTRY("%s", name);
+
+    port = ta_wifi_find_port(name);
+    if (port == NULL)
+    {
+        ERROR("Instance with such name doesn't exist: '%s'", name);
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+    }
+
+    SLIST_REMOVE(&ta_wifi_get_node()->ports, port, ta_wifi_port, links);
+
+    ta_wifi_port_free(port);
+    return 0;
+}
+
+static te_errno
+port_list(unsigned int gid, const char *oid,
+    const char *sub_id, char **list)
+{
+    ta_wifi_port *port;
+    te_string str = TE_STRING_INIT;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(sub_id);
+
+    SLIST_FOREACH(port, &ta_wifi_get_node()->ports, links)
+    {
+        te_string_append(&str, "%s%s",
+                         (str.ptr != NULL) ? " " : "", port->name);
+    }
+
+    *list = str.ptr;
+    return 0;
+}
+
+
+RCF_PCH_CFG_NODE_RW(node_wifi_ssid_option_value, "value",
+                    NULL, NULL,
+                    node_wifi_ssid_option_value_get, node_wifi_ssid_option_value_set);
+
+RCF_PCH_CFG_NODE_COLLECTION(node_wifi_ssid_option, "option",
+                            &node_wifi_ssid_option_value, NULL,
+                            node_wifi_ssid_option_add,
+                            node_wifi_ssid_option_del,
+                            node_wifi_ssid_option_list, NULL);
+
+RCF_PCH_CFG_NODE_RW(node_wifi_ssid_passphrase, "passphrase",
+                    NULL, &node_wifi_ssid_option,
+                    node_wifi_ssid_passphrase_get,
+                    node_wifi_ssid_passphrase_set);
+
+RCF_PCH_CFG_NODE_RW(node_wifi_ssid_protocol, "protocol",
+                    NULL, &node_wifi_ssid_passphrase,
+                    node_wifi_ssid_protocol_get, node_wifi_ssid_protocol_set);
+
+RCF_PCH_CFG_NODE_RW(node_wifi_ssid_security, "security",
+                    NULL, &node_wifi_ssid_protocol,
+                    node_wifi_ssid_security_get, node_wifi_ssid_security_set);
+
+RCF_PCH_CFG_NODE_RW(node_wifi_ssid_mode, "mode",
+                    NULL, &node_wifi_ssid_security,
+                    node_wifi_ssid_mode_get, node_wifi_ssid_mode_set);
+
+RCF_PCH_CFG_NODE_RW(node_wifi_ssid_aname, "aname",
+                    NULL, &node_wifi_ssid_mode,
+                    node_wifi_ssid_aname_get, node_wifi_ssid_aname_set);
+
+RCF_PCH_CFG_NODE_COLLECTION(node_wifi_ssid, "ssid",
+                            &node_wifi_ssid_aname, NULL,
+                            node_wifi_port_ssid_add,
+                            node_wifi_port_ssid_del,
+                            node_wifi_port_ssid_list, NULL);
+
+RCF_PCH_CFG_NODE_RW(node_wifi_option_value, "value",
+                    NULL, NULL,
+                    node_wifi_port_option_value_get, node_wifi_port_option_value_set);
+
+RCF_PCH_CFG_NODE_COLLECTION(node_wifi_option, "option",
+                            &node_wifi_option_value, &node_wifi_ssid,
+                            node_wifi_port_option_add,
+                            node_wifi_port_option_del,
+                            node_wifi_port_option_list, NULL);
+
+RCF_PCH_CFG_NODE_RW(node_wifi_port_frag_threshold, "frag_threshold",
+                    NULL, &node_wifi_option,
+                    node_wifi_port_frag_threshold_get,
+                    node_wifi_port_frag_threshold_set);
+
+RCF_PCH_CFG_NODE_RW(node_wifi_port_channel, "channel",
+                    NULL, &node_wifi_port_frag_threshold,
+                    node_wifi_port_channel_get, node_wifi_port_channel_set);
+
+RCF_PCH_CFG_NODE_RW(node_wifi_port_standard, "standard",
+                    NULL, &node_wifi_port_channel,
+                    node_wifi_port_standard_get, node_wifi_port_standard_set);
+
+RCF_PCH_CFG_NODE_RW(node_wifi_port_ifname, "ifname",
+                    NULL, &node_wifi_port_standard,
+                    node_wifi_port_ifname_get, node_wifi_port_ifname_set);
+
+RCF_PCH_CFG_NODE_RW(node_wifi_port_enable, "enable",
+                    NULL, &node_wifi_port_ifname,
+                    node_wifi_port_enable_get, node_wifi_port_enable_set);
+
+
+RCF_PCH_CFG_NODE_COLLECTION(node_wifi_port, "port",
+                            &node_wifi_port_enable, NULL,
+                            port_add, port_del, port_list, NULL);
+
+RCF_PCH_CFG_NODE_RW(node_wifi_configurator, "configurator",
+                    NULL, &node_wifi_port,
+                    node_wifi_configurator_get, node_wifi_configurator_set);
+
+RCF_PCH_CFG_NODE_RO(node_wifi, "wifi", &node_wifi_configurator, NULL, NULL);
+
+/* Apply WiFi configuration */
+static te_errno
+ta_unix_conf_wifi_apply(void)
+{
+    te_errno rc;
+
+    rc = ta_unix_conf_wifi_cancel();
+    if (rc != 0)
+        return rc;
+
+    switch (ta_wifi_get_node()->configurator)
+    {
+        case TA_WIFI_CFG_UCI:
+        {
+            rc = ta_wifi_uci_apply(ta_wifi_get_node());
+            if (rc != 0)
+                return rc;
+
+            return 0;
+        }
+        default:
+        {
+            /* not implemented */
+            return TE_ENOSYS;
+        }
+    }
+}
+
+/* Cancel WiFi configuration */
+static te_errno
+ta_unix_conf_wifi_cancel(void)
+{
+    switch (ta_wifi_get_node()->configurator)
+    {
+        case TA_WIFI_CFG_UCI:
+            return ta_wifi_uci_cancel(ta_wifi_get_node());
+        default:
+            /* not implemented */
+            return TE_ENOSYS;
+    }
+}
+
+/* See the description in ta_wifi.h */
+te_errno
+ta_unix_conf_wifi_init(void)
+{
+    te_errno rc;
+
+    rc = rcf_pch_add_node("/agent", &node_wifi);
+    if (rc != 0)
+        return rc;
+
+    return 0;
+}
