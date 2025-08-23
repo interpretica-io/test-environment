@@ -61,6 +61,7 @@ should_ignore(ta_wifi_tmpl_type type, const char *opt)
         case TA_WIFI_TMPL_TYPE_IFACE:
         {
             return MATCH("device") ||
+                   MATCH("ifname") ||
                    MATCH("mode") ||
                    MATCH("ssid") ||
                    MATCH("encryption") ||

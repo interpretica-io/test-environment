@@ -115,6 +115,8 @@ ta_wifi_uci_apply_ssid(ta_wifi_cfg_context *ctx, ta_wifi_ssid *node)
     CHECKED_FPRINTF(ctx->f, "config wifi-iface '%s'\n", node->name);
     if (ctx->port->ifname != NULL)
         CHECKED_FPRINTF(ctx->f, "\toption device '%s'\n", ctx->port->ifname);
+    if (node->ifname != NULL && strlen(node->ifname) != 0)
+        CHECKED_FPRINTF(ctx->f, "\toption ifname '%s'\n", node->ifname);
     CHECKED_FPRINTF(ctx->f, "\toption mode '%s'\n", wifi_mode2str[node->mode]);
     CHECKED_FPRINTF(ctx->f, "\toption ssid '%s'\n", node->aname);
     CHECKED_FPRINTF(ctx->f, "\toption encryption '%s'\n",

@@ -82,6 +82,7 @@ typedef struct ta_wifi_ssid {
     SLIST_ENTRY(ta_wifi_ssid) links;    /**< Single-linked list connector */
     char            *name;              /**< Internal name of the SSID */
     char            *aname;             /**< Name of the SSID */
+    char            *ifname;            /**< Interface name */
     ta_wifi_mode     mode;              /**< WiFi mode */
     ta_wifi_security security;          /**< WiFi security */
     ta_wifi_protocol protocol;          /**< WiFi protocol */

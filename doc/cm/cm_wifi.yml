@@ -86,6 +86,14 @@
          SSID instance.
          Name: Internal SSID name
 
+    - oid: "/agent/wifi/port/ssid/ifname"
+      access: read_write
+      type: string
+      d: |
+         Interface name
+         Name: empty
+         Value: Any supported by Linux
+
     - oid: "/agent/wifi/port/ssid/aname"
       access: read_write
       type: string
