@@ -106,7 +106,8 @@ typedef struct ta_wifi_port {
 /** Main wifi object */
 typedef struct ta_wifi {
     SLIST_HEAD(, ta_wifi_port) ports;   /**< Port list */
-    bool                 enable;        /**< Enable configutrator or not */
+    bool                 enable;        /**< Enable configurator or not */
+    bool                 status;        /**< Current status */
     ta_wifi_configurator configurator;  /**< Configurator selection */
 } ta_wifi;
 

@@ -22,6 +22,16 @@
 #include "ta_wifi_internal.h"
 #include "ta_wifi_uci.h"
 
+#define REENABLE() do {                                 \
+        if (ta_wifi_get_node()->enable)                 \
+        {                                               \
+            te_errno __ret;                             \
+            ta_unix_conf_wifi_cancel();                 \
+            __ret = ta_unix_conf_wifi_apply();          \
+            ta_wifi_get_node()->status = (__ret == 0);  \
+        }                                               \
+    } while (0)
+
 static te_errno ta_unix_conf_wifi_apply(void);
 static te_errno ta_unix_conf_wifi_cancel(void);
 
@@ -99,6 +109,7 @@ node_wifi_ssid_passphrase_set(unsigned int gid, const char *oid, char *value,
 
     free(ssid->passphrase);
     ssid->passphrase = TE_STRDUP(value);
+    REENABLE();
     return 0;
 }
 
@@ -142,6 +153,7 @@ node_wifi_ssid_mode_set(unsigned int gid, const char *oid, char *value,
         return TE_RC(TE_TA_UNIX, TE_EINVAL);
 
     ssid->mode = mapped;
+    REENABLE();
     return 0;
 }
 
@@ -185,6 +197,7 @@ node_wifi_ssid_security_set(unsigned int gid, const char *oid, char *value,
         return TE_RC(TE_TA_UNIX, TE_EINVAL);
 
     ssid->security = mapped;
+    REENABLE();
     return 0;
 }
 
@@ -228,6 +241,7 @@ node_wifi_ssid_protocol_set(unsigned int gid, const char *oid, char *value,
         return TE_RC(TE_TA_UNIX, TE_EINVAL);
 
     ssid->protocol = mapped;
+    REENABLE();
     return 0;
 }
 
@@ -266,6 +280,7 @@ node_wifi_ssid_aname_set(unsigned int gid, const char *oid, char *value,
 
     free(ssid->aname);
     ssid->aname = TE_STRDUP(value);
+    REENABLE();
     return 0;
 }
 
@@ -304,6 +319,7 @@ node_wifi_ssid_ifname_set(unsigned int gid, const char *oid, char *value,
 
     free(ssid->ifname);
     ssid->ifname = TE_STRDUP(value);
+    REENABLE();
     return 0;
 }
 
@@ -355,6 +371,7 @@ node_wifi_port_ssid_del(unsigned int gid, const char *oid,
     SLIST_REMOVE(&port->ssids, ssid, ta_wifi_ssid, links);
 
     ta_wifi_ssid_free(ssid);
+    REENABLE();
     return 0;
 }
 
@@ -404,7 +421,7 @@ node_wifi_port_option_value_set(unsigned int gid, const char *oid, const char *v
         return TE_RC(TE_TA_UNIX, TE_ENOENT);
 
     strcpy(option->value, value);
-
+    REENABLE();
     return 0;
 }
 
@@ -458,6 +475,7 @@ node_wifi_port_option_add(unsigned int gid, const char *oid, const char *value,
     option->value = TE_STRDUP(value);
 
     SLIST_INSERT_HEAD(&port->options, option, links);
+    REENABLE();
     return 0;
 }
 
@@ -481,6 +499,7 @@ node_wifi_port_option_del(unsigned int gid, const char *oid,
     SLIST_REMOVE(&port->options, option, ta_wifi_option, links);
 
     ta_wifi_option_free(option);
+    REENABLE();
     return 0;
 }
 
@@ -538,6 +557,7 @@ node_wifi_ssid_option_value_set(unsigned int gid, const char *oid, const char *v
         return TE_RC(TE_TA_UNIX, TE_ENOENT);
 
     strcpy(option->value, value);
+    REENABLE();
 
     return 0;
 }
@@ -604,6 +624,8 @@ node_wifi_ssid_option_add(unsigned int gid, const char *oid, const char *value,
     strcpy(option->value, value);
 
     SLIST_INSERT_HEAD(&ssid->options, option, links);
+    REENABLE();
+
     return 0;
 }
 
@@ -634,6 +656,9 @@ node_wifi_ssid_option_del(unsigned int gid, const char *oid,
     SLIST_REMOVE(&ssid->options, option, ta_wifi_option, links);
 
     ta_wifi_option_free(option);
+
+    REENABLE();
+
     return 0;
 }
 
@@ -720,6 +745,7 @@ node_wifi_port_frag_threshold_set(unsigned int gid, const char *oid,
         return TE_RC(TE_TA_UNIX, TE_EINVAL);
 
     port->frag_threshold = val;
+    REENABLE();
 
     return 0;
 }
@@ -764,6 +790,11 @@ node_wifi_port_channel_set(unsigned int gid, const char *oid, const char *value,
 
     rc = te_strtou_size(value, 0, &port->channel,
                         sizeof(port->channel));
+
+    if (rc == 0)
+    {
+        REENABLE();
+    }
     return TE_RC_UPSTREAM(TE_TA_UNIX, rc);
 }
 
@@ -798,6 +829,7 @@ node_wifi_configurator_set(unsigned int gid, const char *oid,
         return TE_RC(TE_TA_UNIX, TE_EINVAL);
 
     ta_wifi_get_node()->configurator = mapped;
+    REENABLE();
     return 0;
 }
 
@@ -818,13 +850,31 @@ static te_errno
 node_wifi_enable_set(unsigned int gid, const char *oid,
     const char *value, const char *empty)
 {
+    te_errno ret;
+
     UNUSED(gid);
     UNUSED(oid);
     UNUSED(empty);
 
     ta_wifi_get_node()->enable = (atoi(value) > 0) ? true : false;
 
-    return ta_unix_conf_wifi_apply();
+    ret = ta_unix_conf_wifi_apply();
+    ta_wifi_get_node()->status = ret == 0;
+
+    return 0;
+}
+
+static te_errno
+node_wifi_status_get(unsigned int gid, const char *oid, char *value,
+    const char *empty)
+{
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    sprintf(value, "%d", ta_wifi_get_node()->status ? 1 : 0);
+
+    return 0;
 }
 
 static te_errno
@@ -865,6 +915,8 @@ node_wifi_port_ifname_set(unsigned int gid, const char *oid,
 
     free(port->ifname);
     port->ifname = TE_STRDUP(value);
+
+    REENABLE();
 
     return 0;
 }
@@ -909,6 +961,8 @@ node_wifi_port_standard_set(unsigned int gid, const char *oid,
         return TE_RC(TE_TA_UNIX, TE_EINVAL);
 
     port->standard = mapped;
+    REENABLE();
+
     return 0;
 }
 
@@ -940,6 +994,7 @@ port_add(unsigned int gid, const char *oid, const char *value,
 
     SLIST_INSERT_HEAD(&ta_wifi_get_node()->ports, port, links);
 
+    REENABLE();
     return 0;
 }
 
@@ -965,6 +1020,7 @@ port_del(unsigned int gid, const char *oid,
     SLIST_REMOVE(&ta_wifi_get_node()->ports, port, ta_wifi_port, links);
 
     ta_wifi_port_free(port);
+    REENABLE();
     return 0;
 }
 
@@ -1062,8 +1118,12 @@ RCF_PCH_CFG_NODE_COLLECTION(node_wifi_port, "port",
                             &node_wifi_port_ifname, NULL,
                             port_add, port_del, port_list, NULL);
 
-RCF_PCH_CFG_NODE_RW(node_wifi_enable, "enable",
+RCF_PCH_CFG_NODE_RO(node_wifi_status, "status",
                     NULL, &node_wifi_port,
+                    node_wifi_status_get);
+
+RCF_PCH_CFG_NODE_RW(node_wifi_enable, "enable",
+                    NULL, &node_wifi_status,
                     node_wifi_enable_get, node_wifi_enable_set);
 
 RCF_PCH_CFG_NODE_RW(node_wifi_configurator, "configurator",

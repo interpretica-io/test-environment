@@ -26,9 +26,17 @@
 
     - oid: "/agent/wifi/enable"
       access: read_write
-      type: string
+      type: int32
       d: |
          Enable or disable WiFi
+         Name: empty
+         Value: 0 or 1
+
+    - oid: "/agent/wifi/status"
+      access: read_only
+      type: int32
+      d: |
+         Is WiFi enabled or not
          Name: empty
          Value: 0 or 1
 
