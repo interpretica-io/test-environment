@@ -21,6 +21,7 @@
 #include "ta_wifi.h"
 #include "ta_wifi_internal.h"
 #include "ta_wifi_uci.h"
+#include "ta_wifi_wh.h"
 
 #if HAVE_SYS_STAT_H
 #include <sys/stat.h>
@@ -1299,6 +1300,14 @@ ta_unix_conf_wifi_apply(void)
 
                 return 0;
             }
+            case TA_WIFI_CFG_HOSTAPD_WPA_SUPPLICANT:
+            {
+                rc = ta_wifi_wh_apply(ta_wifi_get_node());
+                if (rc != 0)
+                    return rc;
+
+                return 0;
+            }
             default:
             {
                 /* not implemented */
@@ -1318,6 +1327,8 @@ ta_unix_conf_wifi_cancel(void)
     {
         case TA_WIFI_CFG_UCI:
             return ta_wifi_uci_cancel(ta_wifi_get_node());
+        case TA_WIFI_CFG_HOSTAPD_WPA_SUPPLICANT:
+            return ta_wifi_wh_cancel(ta_wifi_get_node());
         default:
             /* not implemented */
             return TE_ENOSYS;

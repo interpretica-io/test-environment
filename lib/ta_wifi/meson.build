@@ -10,7 +10,8 @@ sources += files(
     'ta_wifi_internal.c',
     'ta_wifi_uci.c',
     'ta_wifi_uci_apply.c',
-    'ta_wifi_uci_parser.c'
+    'ta_wifi_uci_parser.c',
+    'ta_wifi_wh.c'
 )
 
 te_libs += [
