@@ -802,39 +802,27 @@ node_wifi_configurator_set(unsigned int gid, const char *oid,
 }
 
 static te_errno
-node_wifi_port_enable_get(unsigned int gid, const char *oid, char *value,
-    const char *empty, const char *port_name)
+node_wifi_enable_get(unsigned int gid, const char *oid, char *value,
+    const char *empty)
 {
-    ta_wifi_port *port;
-
     UNUSED(gid);
     UNUSED(oid);
     UNUSED(empty);
 
-    port = ta_wifi_find_port(port_name);
-    if (port == NULL)
-        return TE_RC(TE_TA_UNIX, TE_ENOENT);
-
-    sprintf(value, "%d", port->enable ? 1 : 0);
+    sprintf(value, "%d", ta_wifi_get_node()->enable ? 1 : 0);
 
     return 0;
 }
 
 static te_errno
-node_wifi_port_enable_set(unsigned int gid, const char *oid,
-    const char *value, const char *empty, const char *port_name)
+node_wifi_enable_set(unsigned int gid, const char *oid,
+    const char *value, const char *empty)
 {
-    ta_wifi_port *port;
-
     UNUSED(gid);
     UNUSED(oid);
     UNUSED(empty);
 
-    port = ta_wifi_find_port(port_name);
-    if (port == NULL)
-        return TE_RC(TE_TA_UNIX, TE_ENOENT);
-
-    port->enable = (atoi(value) > 0) ? true : false;
+    ta_wifi_get_node()->enable = (atoi(value) > 0) ? true : false;
 
     return ta_unix_conf_wifi_apply();
 }
@@ -1071,17 +1059,16 @@ RCF_PCH_CFG_NODE_RW(node_wifi_port_ifname, "ifname",
                     NULL, &node_wifi_port_standard,
                     node_wifi_port_ifname_get, node_wifi_port_ifname_set);
 
-RCF_PCH_CFG_NODE_RW(node_wifi_port_enable, "enable",
-                    NULL, &node_wifi_port_ifname,
-                    node_wifi_port_enable_get, node_wifi_port_enable_set);
-
-
 RCF_PCH_CFG_NODE_COLLECTION(node_wifi_port, "port",
-                            &node_wifi_port_enable, NULL,
+                            &node_wifi_port_ifname, NULL,
                             port_add, port_del, port_list, NULL);
 
-RCF_PCH_CFG_NODE_RW(node_wifi_configurator, "configurator",
+RCF_PCH_CFG_NODE_RW(node_wifi_enable, "enable",
                     NULL, &node_wifi_port,
+                    node_wifi_enable_get, node_wifi_enable_set);
+
+RCF_PCH_CFG_NODE_RW(node_wifi_configurator, "configurator",
+                    NULL, &node_wifi_enable,
                     node_wifi_configurator_get, node_wifi_configurator_set);
 
 RCF_PCH_CFG_NODE_RO(node_wifi, "wifi", &node_wifi_configurator, NULL, NULL);
@@ -1096,22 +1083,27 @@ ta_unix_conf_wifi_apply(void)
     if (rc != 0)
         return rc;
 
-    switch (ta_wifi_get_node()->configurator)
+    if (ta_wifi_get_node()->enable)
     {
-        case TA_WIFI_CFG_UCI:
+        switch (ta_wifi_get_node()->configurator)
         {
-            rc = ta_wifi_uci_apply(ta_wifi_get_node());
-            if (rc != 0)
-                return rc;
+            case TA_WIFI_CFG_UCI:
+            {
+                rc = ta_wifi_uci_apply(ta_wifi_get_node());
+                if (rc != 0)
+                    return rc;
 
-            return 0;
-        }
-        default:
-        {
-            /* not implemented */
-            return TE_ENOSYS;
+                return 0;
+            }
+            default:
+            {
+                /* not implemented */
+                return TE_ENOSYS;
+            }
         }
     }
+
+    return 0;
 }
 
 /* Cancel WiFi configuration */

@@ -24,20 +24,20 @@
          Name: empty
          Value: "uci" or "hostapd_wpa_supplicant"
 
+    - oid: "/agent/wifi/enable"
+      access: read_write
+      type: string
+      d: |
+         Enable or disable WiFi
+         Name: empty
+         Value: 0 or 1
+
     - oid: "/agent/wifi/port"
       access: read_create
       type: none
       d: |
          WiFi port instance.
          Name: any, typically 2_4 or 5
-
-    - oid: "/agent/wifi/port/enable"
-      access: read_write
-      type: string
-      d: |
-         Enable or disable the port
-         Name: empty
-         Value: 0 or 1
 
     - oid: "/agent/wifi/port/ifname"
       access: read_write

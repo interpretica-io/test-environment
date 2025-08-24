@@ -94,7 +94,6 @@ typedef struct ta_wifi_ssid {
 /** WiFi port */
 typedef struct ta_wifi_port {
     SLIST_ENTRY(ta_wifi_port) links;    /**< Single-linked list connector */
-    bool             enable;            /**< Enable the port or not */
     char            *name;              /**< Internal port name */
     char            *ifname;            /**< Device name */
     ta_wifi_standard standard;          /**< WiFi standard */
@@ -107,6 +106,7 @@ typedef struct ta_wifi_port {
 /** Main wifi object */
 typedef struct ta_wifi {
     SLIST_HEAD(, ta_wifi_port) ports;   /**< Port list */
+    bool                 enable;        /**< Enable configutrator or not */
     ta_wifi_configurator configurator;  /**< Configurator selection */
 } ta_wifi;
 
