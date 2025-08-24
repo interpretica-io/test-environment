@@ -863,9 +863,8 @@ node_wifi_port_ifname_set(unsigned int gid, const char *oid,
     if (port == NULL)
         return TE_RC(TE_TA_UNIX, TE_ENOENT);
 
-    port->ifname = strdup(value);
-    if (port->ifname == NULL)
-        return TE_RC(TE_TA_UNIX, TE_ENOMEM);
+    free(port->ifname);
+    port->ifname = TE_STRDUP(value);
 
     return 0;
 }
