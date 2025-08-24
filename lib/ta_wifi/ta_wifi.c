@@ -420,7 +420,9 @@ node_wifi_port_option_value_set(unsigned int gid, const char *oid, const char *v
     if ((option = ta_wifi_port_find_option(port, option_name)) == NULL)
         return TE_RC(TE_TA_UNIX, TE_ENOENT);
 
-    strcpy(option->value, value);
+    free(option->value);
+    option->value = TE_STRDUP(value);
+
     REENABLE();
     return 0;
 }
@@ -556,7 +558,9 @@ node_wifi_ssid_option_value_set(unsigned int gid, const char *oid, const char *v
     if ((option = ta_wifi_ssid_find_option(ssid, option_name)) == NULL)
         return TE_RC(TE_TA_UNIX, TE_ENOENT);
 
-    strcpy(option->value, value);
+    free(option->value);
+    option->value = TE_STRDUP(value);
+
     REENABLE();
 
     return 0;
@@ -621,7 +625,7 @@ node_wifi_ssid_option_add(unsigned int gid, const char *oid, const char *value,
     option = TE_ALLOC(sizeof(*option));
 
     option->name = TE_STRDUP(option_name);
-    strcpy(option->value, value);
+    option->value = TE_STRDUP(value);
 
     SLIST_INSERT_HEAD(&ssid->options, option, links);
     REENABLE();
