@@ -39,6 +39,7 @@ typedef enum ta_wifi_standard {
     TA_WIFI_STANDARD_N,                 /**< N standard (2.4GHz) */
     TA_WIFI_STANDARD_AC,                /**< AC standard (5GHz) */
     TA_WIFI_STANDARD_AX,                /**< AX standard (5GHz) */
+    TA_WIFI_STANDARD_BE,                /**< BE standard (6GHz) */
 } ta_wifi_standard;
 
 /** Supported WiFi HT modes */

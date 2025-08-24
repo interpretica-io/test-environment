@@ -60,6 +60,7 @@ static const char *wifi_standard2htmode[] = {
     [TA_WIFI_STANDARD_N] = "HT40",
     [TA_WIFI_STANDARD_AC] = "HT80",
     [TA_WIFI_STANDARD_AX] = "HT160",
+    [TA_WIFI_STANDARD_BE] = "HT320",
 };
 
 /* HW modes */
@@ -68,6 +69,7 @@ static const char *wifi_standard2hwmode[] = {
     [TA_WIFI_STANDARD_N] = "11n",
     [TA_WIFI_STANDARD_AC] = "11ac",
     [TA_WIFI_STANDARD_AX] = "11ax",
+    [TA_WIFI_STANDARD_BE] = "11be",
 };
 
 /* Security modes */
