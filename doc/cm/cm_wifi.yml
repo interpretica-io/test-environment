@@ -16,6 +16,14 @@
          Root object of the WiFi configuration tree.
          Name: empty
 
+    - oid: "/agent/wifi/configurator"
+      access: read_write
+      type: string
+      d: |
+         Select configurator
+         Name: empty
+         Value: "uci" or "hostapd_wpa_supplicant"
+
     - oid: "/agent/wifi/port"
       access: read_create
       type: none
