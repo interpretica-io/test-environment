@@ -407,12 +407,20 @@ ta_wifi_wh_cancel(ta_wifi *node)
 
     SLIST_FOREACH(port, &node->ports, links)
     {
+        RING("Cancel WiFi port %s",
+             port->ifname != NULL ? port->ifname : "none");
+        if (port->ifname == NULL)
+            continue;
+
         ret = te_snprintf(pid_file,
                           sizeof(pid_file),
                           WPA_SUPPLICANT_PID_FMT,
                           port->ifname);
         if (ret != 0)
+        {
+            ERROR("Couldn't build pid file path");
             return ret;
+        }
 
         try_kill_pid(pid_file);
     }
