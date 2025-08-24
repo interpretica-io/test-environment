@@ -347,6 +347,9 @@ ta_wifi_uci_apply(ta_wifi *node)
     if (ret != 0)
         goto err;
 
+    fclose(ctx.f);
+    ctx.f = NULL;
+
     /* Restart WiFi */
     if (ta_system("wifi up") != 0)
     {
@@ -363,7 +366,8 @@ ta_wifi_uci_apply(ta_wifi *node)
 
 err:
     ta_wifi_tmpl_data_fini(&tmpl_data);
-    fclose(ctx.f);
+    if (ctx.f != NULL)
+        fclose(ctx.f);
 
     return ret;
 }
