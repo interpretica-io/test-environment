@@ -35,6 +35,7 @@
     - oid: "/agent/wifi/status"
       access: read_only
       type: int32
+      volatile: true
       d: |
          Is WiFi enabled or not
          Name: empty
