@@ -72,13 +72,117 @@
          Name: empty
          Value: Channel number
 
+    - oid: "/agent/wifi/port/htmode"
+      access: read_write
+      type: string
+      d: |
+         Bandwidth
+         Name: empty
+         Value: NOHT, HT20, HT40-, HT40+, VHT20, VHT40, VHT80, VHT160, VHT320, HE20, HE40, HE80, HE160, HE320
+
+    - oid: "/agent/wifi/port/max_a_msdu"
+      access: read_write
+      type: uint32
+      d: |
+         Max A-MSDU
+         Name: empty
+         Value: any supported value
+
+    - oid: "/agent/wifi/port/max_a_mpdu"
+      access: read_write
+      type: uint32
+      d: |
+         Max A-MPDU
+         Name: empty
+         Value: any supported value
+
     - oid: "/agent/wifi/port/frag_threshold"
       access: read_write
-      type: uint16
+      type: uint32
       d: |
          Fragmentation threshold.
          Name: empty
          Value: 0 (disable fragmentation) or 256 .. 2346
+
+    - oid: "/agent/wifi/port/rts_threshold"
+      access: read_write
+      type: uint32
+      d: |
+         RTS threshold.
+         Name: empty
+         Value: Any supported value
+
+    - oid: "/agent/wifi/port/short_retry_limit"
+      access: read_write
+      type: uint32
+      d: |
+         Short retry limit.
+         Name: empty
+         Value: Any supported value
+
+    - oid: "/agent/wifi/port/long_retry_limit"
+      access: read_write
+      type: uint32
+      d: |
+         Long retry limit.
+         Name: empty
+         Value: Any supported value
+
+    - oid: "/agent/wifi/port/guard_interval"
+      access: read_write
+      type: uint32
+      d: |
+         Guard interval
+         Name: empty
+         Value: Any supported value (in ns)
+
+    - oid: "/agent/wifi/port/aifs"
+      access: read_write
+      type: uint32
+      d: |
+         Arbitration Inter-Frame Space
+         Name: empty
+         Value: Any supported value
+
+    - oid: "/agent/wifi/port/contention_window_min"
+      access: read_write
+      type: uint32
+      d: |
+         Contention window minimum
+         Name: empty
+         Value: Any supported value
+
+    - oid: "/agent/wifi/port/contention_window_max"
+      access: read_write
+      type: uint32
+      d: |
+         Contention window maximum
+         Name: empty
+         Value: Any supported value
+
+    - oid: "/agent/wifi/port/txop_limit"
+      access: read_write
+      type: uint32
+      d: |
+         TXOP Limit
+         Name: empty
+         Value: Any supported value (in microseconds)
+
+    - oid: "/agent/wifi/port/tx_power"
+      access: read_write
+      type: uint32
+      d: |
+         TX power
+         Name: empty
+         Value: Any supported value (in DBM)
+
+    - oid: "/agent/wifi/port/max_nss"
+      access: read_write
+      type: uint32
+      d: |
+         Maximum number of spatial streams
+         Name: empty
+         Value: Any supported value
 
     - oid: "/agent/wifi/port/option"
       access: read_create
