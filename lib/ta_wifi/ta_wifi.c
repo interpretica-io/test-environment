@@ -1172,6 +1172,7 @@ RCF_PCH_CFG_NODE_RWC(node_wifi_port_ ## __name, #__name,            \
                      node_wifi_port_ ##__name## _set,               \
                      &node_wifi);
 
+
 UINT32_VAL_NODE(max_nss, option);
 UINT32_VAL_NODE(tx_power, max_nss);
 UINT32_VAL_NODE(txop_limit, tx_power);
