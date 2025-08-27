@@ -44,11 +44,21 @@ typedef enum ta_wifi_standard {
 
 /** Supported WiFi HT modes */
 typedef enum ta_wifi_ht_mode {
-    TA_WIFI_HT_MODE_HT20 = 0,           /**< 20MHz bandwidth */
-    TA_WIFI_HT_MODE_HT40,               /**< 40MHz bandwidth */
-    TA_WIFI_HT_MODE_HT80,               /**< 80MHz bandwidth */
-    TA_WIFI_HT_MODE_HT160,              /**< 160MHz bandwidth */
-    TA_WIFI_HT_MODE_HT320,              /**< 320MHz bandwidth */
+    TA_WIFI_HT_MODE_NOHT = 0,           /**< Disable HT */
+    TA_WIFI_HT_MODE_HT20,               /**< HT20 */
+    TA_WIFI_HT_MODE_HT40,               /**< HT40  */
+    TA_WIFI_HT_MODE_HT40P,              /**< HT40+ */
+    TA_WIFI_HT_MODE_HT40M,              /**< HT40- */
+    TA_WIFI_HT_MODE_VHT20,              /**< VHT20 */
+    TA_WIFI_HT_MODE_VHT40,              /**< VHT40 */
+    TA_WIFI_HT_MODE_VHT80,              /**< VHT80 */
+    TA_WIFI_HT_MODE_VHT160,             /**< VHT160 */
+    TA_WIFI_HT_MODE_VHT320,             /**< VHT320 */
+    TA_WIFI_HT_MODE_HE20,               /**< HE20 */
+    TA_WIFI_HT_MODE_HE40,               /**< HE40 */
+    TA_WIFI_HT_MODE_HE80,               /**< HE80 */
+    TA_WIFI_HT_MODE_HE160,              /**< HE160 */
+    TA_WIFI_HT_MODE_HE320,              /**< HE320 */
 } ta_wifi_ht_mode;
 
 /** Supported WiFi modes */
@@ -98,7 +108,22 @@ typedef struct ta_wifi_port {
     char            *ifname;            /**< Device name */
     ta_wifi_standard standard;          /**< WiFi standard */
     uint8_t          channel;           /**< Channel of the port */
-    uint16_t         frag_threshold;    /**< Fragment threshold */
+    ta_wifi_ht_mode  htmode;            /**< HT mode */
+
+    uint32_t         max_a_msdu;        /**< Max A-MSDU */
+    uint32_t         max_a_mpdu;        /**< Max A-MPDU */
+    uint32_t         frag_threshold;    /**< Fragment threshold */
+    uint32_t         rts_threshold;     /**< RTS threshold */
+    uint32_t         short_retry_limit; /**< Short retry limit */
+    uint32_t         long_retry_limit;  /**< Long retry limit */
+    uint32_t         guard_interval;    /**< Guard interval */
+    uint32_t         aifs;              /**< Arbitration Inter-Frame Space */
+    uint32_t         contention_window_min; /**< Contention window (min) */
+    uint32_t         contention_window_max; /**< Contention window (max) */
+    uint32_t         txop_limit;        /**< TXOP limit */
+    uint32_t         tx_power;          /**< TX Power */
+    uint32_t         max_nss;           /**< Max number of spatial streams */
+
     wifi_ssids       ssids;             /**< SSID list */
     SLIST_HEAD(, ta_wifi_option) options;   /**< Embedded port options */
 } ta_wifi_port;

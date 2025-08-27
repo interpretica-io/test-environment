@@ -13,6 +13,7 @@
 #include "ta_wifi_uci.h"
 #include "logger_api.h"
 #include "agentlib.h"
+#include "te_enum.h"
 
 #if HAVE_UNISTD_H
 #include <unistd.h>
@@ -47,6 +48,8 @@ typedef struct ta_wifi_cfg_context {
         .tmpl_data = NULL, \
     }
 
+extern const te_enum_map wifi_htmode_mapping[];
+
 /* AP modes */
 static const char *wifi_mode2str[] = {
     [TA_WIFI_MODE_AP] = "ap",
@@ -58,8 +61,8 @@ static const char *wifi_mode2str[] = {
 static const char *wifi_standard2htmode[] = {
     [TA_WIFI_STANDARD_G] = "HT20",
     [TA_WIFI_STANDARD_N] = "HT40",
-    [TA_WIFI_STANDARD_AC] = "HT80",
-    [TA_WIFI_STANDARD_AX] = "HT160",
+    [TA_WIFI_STANDARD_AC] = "VHT80",
+    [TA_WIFI_STANDARD_AX] = "VHT160",
     [TA_WIFI_STANDARD_BE] = "HT320",
 };
 
@@ -77,7 +80,7 @@ static const char *wifi_security2enc[] = {
     [TA_WIFI_SECURITY_OPEN] = "none",
     [TA_WIFI_SECURITY_WPA]  = "wpa",
     [TA_WIFI_SECURITY_WPA2] = "wpa2",
-    [TA_WIFI_SECURITY_WPA3] = "wpa3",
+    [TA_WIFI_SECURITY_WPA3] = "sae-mixed",
 };
 
 /* fprintf that would propagate error to TE */
@@ -207,11 +210,17 @@ ta_wifi_uci_apply_port(ta_wifi_cfg_context *ctx, ta_wifi_port *node)
     CHECKED_FPRINTF(ctx->f, "config wifi-device '%s'\n", node->ifname);
     CHECKED_FPRINTF(ctx->f, "\toption channel '%d'\n", node->channel);
     CHECKED_FPRINTF(ctx->f, "\toption htmode '%s'\n",
-        wifi_standard2htmode[node->standard]);
+        te_enum_map_from_value(wifi_htmode_mapping, node->htmode));
     CHECKED_FPRINTF(ctx->f, "\toption hwmode '%s'\n",
         wifi_standard2hwmode[node->standard]);
     CHECKED_FPRINTF(ctx->f, "\toption wifi_radio_instance '%d'\n",
         ctx->radio_instance);
+    if (node->tx_power != 0)
+        CHECKED_FPRINTF(ctx->f, "\toption txpower '%u'\n", (unsigned)node->tx_power);
+    if (node->frag_threshold != 0)
+        CHECKED_FPRINTF(ctx->f, "\toption frag '%u'\n", (unsigned)node->frag_threshold);
+    if (node->rts_threshold != 0)
+        CHECKED_FPRINTF(ctx->f, "\toption rts '%u'\n", (unsigned)node->rts_threshold);
 
     SLIST_FOREACH(option, &node->options, links)
     {

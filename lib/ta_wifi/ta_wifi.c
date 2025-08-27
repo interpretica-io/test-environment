@@ -44,6 +44,26 @@ static const te_enum_map wifi_standard_mapping[] = {
     TE_ENUM_MAP_END
 };
 
+/** Mapping of supported HT modes */
+const te_enum_map wifi_htmode_mapping[] = {
+    { .name = "NOHT", .value = TA_WIFI_HT_MODE_NOHT },
+    { .name = "HT20", .value = TA_WIFI_HT_MODE_HT20 },
+    { .name = "HT40", .value = TA_WIFI_HT_MODE_HT40 },
+    { .name = "HT40+", .value = TA_WIFI_HT_MODE_HT40P },
+    { .name = "HT40-", .value = TA_WIFI_HT_MODE_HT40M },
+    { .name = "VHT20", .value = TA_WIFI_HT_MODE_VHT20 },
+    { .name = "VHT40", .value = TA_WIFI_HT_MODE_VHT40 },
+    { .name = "VHT80", .value = TA_WIFI_HT_MODE_VHT80 },
+    { .name = "VHT160", .value = TA_WIFI_HT_MODE_VHT160 },
+    { .name = "VHT320", .value = TA_WIFI_HT_MODE_VHT320 },
+    { .name = "HE20", .value = TA_WIFI_HT_MODE_HE20 },
+    { .name = "HE40", .value = TA_WIFI_HT_MODE_HE40 },
+    { .name = "HE80", .value = TA_WIFI_HT_MODE_HE80 },
+    { .name = "HE160", .value = TA_WIFI_HT_MODE_HE160 },
+    { .name = "HE320", .value = TA_WIFI_HT_MODE_HE320 },
+    TE_ENUM_MAP_END
+};
+
 /** Mapping of supported WiFi security */
 static const te_enum_map wifi_security_mapping[] = {
     { .name = "open", .value = TA_WIFI_SECURITY_OPEN },
@@ -700,61 +720,6 @@ node_wifi_ssid_option_list(unsigned int gid, const char *oid, const char *sub_id
 }
 
 static te_errno
-node_wifi_port_frag_threshold_get(unsigned int gid, const char *oid,
-    char *value, const char *empty, const char *port_name)
-{
-    ta_wifi_port *port;
-    te_errno rc;
-
-    UNUSED(gid);
-    UNUSED(oid);
-    UNUSED(empty);
-
-    ENTRY("%s", port_name);
-
-    port = ta_wifi_find_port(port_name);
-    if (port == NULL)
-        return TE_RC(TE_TA_UNIX, TE_ENOENT);
-
-    rc = te_snprintf(value, RCF_MAX_VAL, "%u",
-             (unsigned int)port->frag_threshold);
-
-    return TE_RC_UPSTREAM(TE_TA_UNIX, rc);
-}
-
-static te_errno
-node_wifi_port_frag_threshold_set(unsigned int gid, const char *oid,
-    const char *value, const char *empty, const char *port_name)
-{
-    ta_wifi_port *port;
-    te_errno rc;
-    uint16_t val;
-
-    UNUSED(gid);
-    UNUSED(oid);
-    UNUSED(empty);
-
-    ENTRY("%s", port_name);
-
-    port = ta_wifi_find_port(port_name);
-    if (port == NULL)
-        return TE_RC(TE_TA_UNIX, TE_ENOENT);
-
-    rc = te_strtou_size(value, 0, &val,
-                        sizeof(val));
-    if (rc != 0)
-        return TE_RC(TE_TA_UNIX, rc);
-
-    if (val != 0 && (val < 256 || val > 2346))
-        return TE_RC(TE_TA_UNIX, TE_EINVAL);
-
-    port->frag_threshold = val;
-    REENABLE();
-
-    return 0;
-}
-
-static te_errno
 node_wifi_port_channel_get(unsigned int gid, const char *oid, char *value,
     const char *empty, const char *port_name)
 {
@@ -971,6 +936,51 @@ node_wifi_port_standard_set(unsigned int gid, const char *oid,
 }
 
 static te_errno
+node_wifi_port_htmode_get(unsigned int gid, const char *oid, char *value,
+    const char *empty, const char *port_name)
+{
+    ta_wifi_port *port;
+    te_errno rc;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    port = ta_wifi_find_port(port_name);
+    if (port == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    rc = te_snprintf(value, RCF_MAX_VAL, "%s",
+             te_enum_map_from_value(wifi_htmode_mapping, port->htmode));
+    return TE_RC_UPSTREAM(TE_TA_UNIX, rc);
+}
+
+static te_errno
+node_wifi_port_htmode_set(unsigned int gid, const char *oid,
+    const char *value, const char *empty, const char *port_name)
+{
+    ta_wifi_port *port;
+    int mapped;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    port = ta_wifi_find_port(port_name);
+    if (port == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    mapped = te_enum_map_from_str(wifi_htmode_mapping, value, -1);
+    if (mapped < 0)
+        return TE_RC(TE_TA_UNIX, TE_EINVAL);
+
+    port->htmode = mapped;
+    REENABLE();
+
+    return 0;
+}
+
+static te_errno
 port_add(unsigned int gid, const char *oid, const char *value,
     const char *empty, const char *name)
 {
@@ -1095,27 +1105,101 @@ RCF_PCH_CFG_NODE_RW(node_wifi_option_value, "value",
                     NULL, NULL,
                     node_wifi_port_option_value_get, node_wifi_port_option_value_set);
 
-RCF_PCH_CFG_NODE_COLLECTION(node_wifi_option, "option",
+RCF_PCH_CFG_NODE_COLLECTION(node_wifi_port_option, "option",
                             &node_wifi_option_value, &node_wifi_ssid,
                             node_wifi_port_option_add,
                             node_wifi_port_option_del,
                             node_wifi_port_option_list, NULL);
 
-RCF_PCH_CFG_NODE_RW(node_wifi_port_frag_threshold, "frag_threshold",
-                    NULL, &node_wifi_option,
-                    node_wifi_port_frag_threshold_get,
-                    node_wifi_port_frag_threshold_set);
+#define UINT32_VAL_NODE(__name, __next)                             \
+static te_errno                                                     \
+node_wifi_port_ ##__name## _get(unsigned int gid, const char *oid,  \
+    char *value, const char *empty, const char *port_name)          \
+{                                                                   \
+    ta_wifi_port *port;                                             \
+    te_errno rc;                                                    \
+                                                                    \
+    UNUSED(gid);                                                    \
+    UNUSED(oid);                                                    \
+    UNUSED(empty);                                                  \
+                                                                    \
+    ENTRY("%s", port_name);                                         \
+                                                                    \
+    port = ta_wifi_find_port(port_name);                            \
+    if (port == NULL)                                               \
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);                        \
+                                                                    \
+    rc = te_snprintf(value, RCF_MAX_VAL, "%u",                      \
+             (unsigned int)port->__name);                           \
+                                                                    \
+    return TE_RC_UPSTREAM(TE_TA_UNIX, rc);                          \
+}                                                                   \
+                                                                    \
+static te_errno                                                     \
+node_wifi_port_ ##__name## _set(unsigned int gid, const char *oid,  \
+    const char *value, const char *empty, const char *port_name)    \
+{                                                                   \
+    ta_wifi_port *port;                                             \
+    te_errno rc;                                                    \
+    uint16_t val;                                                   \
+                                                                    \
+    UNUSED(gid);                                                    \
+    UNUSED(oid);                                                    \
+    UNUSED(empty);                                                  \
+                                                                    \
+    ENTRY("%s", port_name);                                         \
+                                                                    \
+    port = ta_wifi_find_port(port_name);                            \
+    if (port == NULL)                                               \
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);                        \
+                                                                    \
+    rc = te_strtou_size(value, 0, &val,                             \
+                        sizeof(val));                               \
+    if (rc != 0)                                                    \
+        return TE_RC(TE_TA_UNIX, rc);                               \
+                                                                    \
+                                                                    \
+    port->__name = val;                                             \
+    REENABLE();                                                     \
+                                                                    \
+    return 0;                                                       \
+}                                                                   \
+                                                                    \
+RCF_PCH_CFG_NODE_RW(node_wifi_port_ ## __name, #__name,             \
+                    NULL, &node_wifi_port_ ##__next,                \
+                    node_wifi_port_ ##__name## _get,                \
+                    node_wifi_port_ ##__name## _set);
+
+UINT32_VAL_NODE(max_nss, option);
+UINT32_VAL_NODE(tx_power, max_nss);
+UINT32_VAL_NODE(txop_limit, tx_power);
+UINT32_VAL_NODE(contention_window_max, txop_limit);
+UINT32_VAL_NODE(contention_window_min, contention_window_max);
+UINT32_VAL_NODE(aifs, contention_window_min);
+UINT32_VAL_NODE(guard_interval, aifs);
+UINT32_VAL_NODE(long_retry_limit, guard_interval);
+UINT32_VAL_NODE(short_retry_limit, long_retry_limit);
+UINT32_VAL_NODE(rts_threshold, short_retry_limit);
+UINT32_VAL_NODE(frag_threshold, rts_threshold);
+UINT32_VAL_NODE(max_a_mpdu, frag_threshold);
+UINT32_VAL_NODE(max_a_msdu, max_a_mpdu);
+
+#undef UINT32_VAL_NODE
 
 RCF_PCH_CFG_NODE_RW(node_wifi_port_channel, "channel",
-                    NULL, &node_wifi_port_frag_threshold,
+                    NULL, &node_wifi_port_max_a_msdu,
                     node_wifi_port_channel_get, node_wifi_port_channel_set);
 
 RCF_PCH_CFG_NODE_RW(node_wifi_port_standard, "standard",
                     NULL, &node_wifi_port_channel,
                     node_wifi_port_standard_get, node_wifi_port_standard_set);
 
-RCF_PCH_CFG_NODE_RW(node_wifi_port_ifname, "ifname",
+RCF_PCH_CFG_NODE_RW(node_wifi_port_htmode, "htmode",
                     NULL, &node_wifi_port_standard,
+                    node_wifi_port_htmode_get, node_wifi_port_htmode_set);
+
+RCF_PCH_CFG_NODE_RW(node_wifi_port_ifname, "ifname",
+                    NULL, &node_wifi_port_htmode,
                     node_wifi_port_ifname_get, node_wifi_port_ifname_set);
 
 RCF_PCH_CFG_NODE_COLLECTION(node_wifi_port, "port",
