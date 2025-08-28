@@ -78,8 +78,8 @@ static const char *wifi_standard2hwmode[] = {
 /* Security modes */
 static const char *wifi_security2enc[] = {
     [TA_WIFI_SECURITY_OPEN] = "none",
-    [TA_WIFI_SECURITY_WPA]  = "wpa",
-    [TA_WIFI_SECURITY_WPA2] = "wpa2",
+    [TA_WIFI_SECURITY_WPA]  = "psk",
+    [TA_WIFI_SECURITY_WPA2] = "psk2",
     [TA_WIFI_SECURITY_WPA3] = "sae-mixed",
 };
 
