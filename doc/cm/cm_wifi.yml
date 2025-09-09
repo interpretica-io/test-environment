@@ -72,13 +72,13 @@
          Name: empty
          Value: Channel number
 
-    - oid: "/agent/wifi/port/htmode"
+    - oid: "/agent/wifi/port/width"
       access: read_write
       type: string
       d: |
          Bandwidth
          Name: empty
-         Value: NOHT, HT20, HT40-, HT40+, VHT20, VHT40, VHT80, VHT160, VHT320, HE20, HE40, HE80, HE160, HE320
+         Value: 20, 40, 80, 160, 320
 
     - oid: "/agent/wifi/port/max_a_msdu"
       access: read_write
