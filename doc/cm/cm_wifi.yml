@@ -231,7 +231,7 @@
          Name: empty
          Value: Any supported by Linux
 
-    - oid: "/agent/wifi/port/ssid/ssid"
+    - oid: "/agent/wifi/port/ssid/name"
       access: read_write
       type: string
       d: |
