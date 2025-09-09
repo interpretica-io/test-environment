@@ -48,6 +48,14 @@
          WiFi port instance.
          Name: any, typically 2_4 or 5
 
+    - oid: "/agent/wifi/port/enable"
+      access: read_write
+      type: int32
+      d: |
+         Port enable state
+         Name: empty
+         Value: 1 (true) or 0 (false)
+
     - oid: "/agent/wifi/port/ifname"
       access: read_write
       type: string
@@ -206,6 +214,14 @@
       d: |
          SSID instance.
          Name: Internal SSID name
+
+    - oid: "/agent/wifi/port/ssid/enable"
+      access: read_write
+      type: int32
+      d: |
+         SSID enable status
+         Name: empty
+         Value: 1 (true) or 0 (false)
 
     - oid: "/agent/wifi/port/ssid/ifname"
       access: read_write
