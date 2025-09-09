@@ -287,7 +287,7 @@ te_vec_tokenize_string(const char *str, te_vec *strvec, char *sep_symbols)
 
     te_vec_set_destroy_fn_safe(strvec, te_vec_item_free_ptr);
 
-    if (str == NULL || (*str == '\0' && empty_is_none))
+    if (str == NULL || *str == '\0')
         return 0;
 
     str_copy = TE_STRDUP(str);
