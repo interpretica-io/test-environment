@@ -341,6 +341,7 @@ static te_errno
 node_wifi_ssid_enable_set(unsigned int gid, const char *oid, char *value,
     const char *empty, const char *port_name, const char *ssid_name)
 {
+    te_errno      ret;
     ta_wifi_ssid *ssid;
     bool          result;
 
