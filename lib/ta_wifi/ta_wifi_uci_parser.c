@@ -13,6 +13,7 @@
 #include "te_alloc.h"
 #include "te_str.h"
 #include "te_string.h"
+#include "te_vector.h"
 
 #include "ta_wifi.h"
 #include "ta_wifi_internal.h"
@@ -180,36 +181,31 @@ ta_wifi_uci_parser_parse(const char *path,
 
     while (fgets(line, sizeof(line), f))
     {
-        int   n = 0;
-        char *tok[3] = {0};
-        char *p;
+        int    n = 0;
+        char  *tok[3] = {0};
+        te_vec linevec = TE_VEC_INIT(char *);
+        const char * const *p;
 
-        p = strtok(line, " \t\r\n");
-        while (p && n < 3)
-        {
-            if (*p == '\'' && p[strlen(p) - 1] == '\'' && strlen(p) > 1)
-            {
-                p[strlen(p) - 1] = 0;
-                p++;
-            }
-            tok[n++] = p;
-            if (n == 2)
-            {
-                p = strtok(NULL, "\n");
-            }
-            else
-            {
-                p = strtok(NULL, " \t\r\n");
-            }
-        }
+        line[sizeof(line) - 1] = '\0';
 
-        if (n == 3)
+        if (te_vec_tokenize_string(line, &linevec, " \t\r\n") != 0)
+            continue;
+
+        if (te_vec_size(&linevec) == 3)
         {
-            ret = ta_wifi_process_tokens(&ctx, data,
-                tok[0], tok[1], tok[2]);
+            TE_VEC_FOREACH(&linevec, p)
+            {
+                tok[n] = (char *)p;
+                n++;
+                if (n == 3)
+                    break;
+            }
+
+            ret = ta_wifi_process_tokens(&ctx, data, tok[0], tok[1], tok[2]);
             if (ret != 0)
                 goto err;
         }
+        te_vec_deep_free(&linevec);
     }
 
     ret = 0;

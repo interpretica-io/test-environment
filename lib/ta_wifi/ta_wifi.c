@@ -757,8 +757,7 @@ node_wifi_port_channel_set(unsigned int gid, const char *oid, const char *value,
     if (port == NULL)
         return TE_RC(TE_TA_UNIX, TE_ENOENT);
 
-    rc = te_strtou_size(value, 0, &port->channel,
-                        sizeof(port->channel));
+    rc = te_strtou_size(value, 0, &port->channel, sizeof(port->channel));
 
     if (rc == 0)
     {
@@ -820,12 +819,17 @@ node_wifi_enable_set(unsigned int gid, const char *oid,
     const char *value, const char *empty)
 {
     te_errno ret;
+    bool     result;
 
     UNUSED(gid);
     UNUSED(oid);
     UNUSED(empty);
 
-    ta_wifi_get_node()->enable = (atoi(value) > 0) ? true : false;
+    ret = te_strtol_bool(value, &result);
+    if (ret != 0)
+        return ret;
+
+    ta_wifi_get_node()->enable = result;
 
     ret = ta_unix_conf_wifi_apply();
     ta_wifi_get_node()->status = ret == 0;
@@ -1153,11 +1157,9 @@ node_wifi_port_ ##__name## _set(unsigned int gid, const char *oid,  \
     if (port == NULL)                                               \
         return TE_RC(TE_TA_UNIX, TE_ENOENT);                        \
                                                                     \
-    rc = te_strtou_size(value, 0, &val,                             \
-                        sizeof(val));                               \
+    rc = te_strtou_size(value, 0, &val, sizeof(val));               \
     if (rc != 0)                                                    \
         return TE_RC(TE_TA_UNIX, rc);                               \
-                                                                    \
                                                                     \
     port->__name = val;                                             \
     REENABLE();                                                     \

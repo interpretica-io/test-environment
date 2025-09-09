@@ -40,12 +40,12 @@ typedef struct ta_wifi_cfg_context {
 } ta_wifi_cfg_context;
 
 /** Initialize configuration context */
-#define TA_WIFI_CFG_CONTEXT_INIT() { \
-        .f = NULL, \
-        .radio_instance = 0, \
-        .iface_instance = 0, \
-        .port = NULL, \
-        .tmpl_data = NULL, \
+#define TA_WIFI_CFG_CONTEXT_INIT() {        \
+        .f = NULL,                          \
+        .radio_instance = 0,                \
+        .iface_instance = 0,                \
+        .port = NULL,                       \
+        .tmpl_data = NULL,                  \
     }
 
 extern const te_enum_map wifi_htmode_mapping[];
