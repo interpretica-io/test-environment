@@ -118,12 +118,12 @@ ta_wifi_wh_apply_wpas_ssid(ta_wifi_wh_context *ctx, ta_wifi_ssid *ssid)
     assert(ctx != NULL);
     assert(ctx->port != NULL);
     assert(ssid != NULL);
-    assert(ssid->ssid != NULL);
+    assert(ssid->name != NULL);
 
     port = ctx->port;
 
     CHECKED_FPRINTF(ctx->f, "network={\n");
-    CHECKED_FPRINTF(ctx->f, "ssid=\"%s\"\n", ssid->ssid);
+    CHECKED_FPRINTF(ctx->f, "ssid=\"%s\"\n", ssid->name);
 
     if (ssid->security != TA_WIFI_SECURITY_OPEN)
     {
