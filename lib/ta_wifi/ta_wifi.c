@@ -22,6 +22,8 @@
 #include "ta_wifi_internal.h"
 #include "ta_wifi_uci.h"
 
+static rcf_pch_cfg_object node_wifi;
+
 static te_errno ta_unix_conf_wifi_apply(void);
 static te_errno ta_unix_conf_wifi_cancel(void);
 
