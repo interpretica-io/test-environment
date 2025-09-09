@@ -46,7 +46,7 @@ ta_wifi_ssid_free(ta_wifi_ssid *ssid)
     if (ssid != NULL)
     {
         free(ssid->name);
-        free(ssid->aname);
+        free(ssid->ssid);
         free(ssid->ifname);
         free(ssid->passphrase);
     }

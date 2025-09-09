@@ -242,7 +242,7 @@ node_wifi_ssid_protocol_set(unsigned int gid, const char *oid, char *value,
 }
 
 static te_errno
-node_wifi_ssid_aname_get(unsigned int gid, const char *oid, char *value,
+node_wifi_ssid_ssid_get(unsigned int gid, const char *oid, char *value,
     const char *empty, const char *port_name, const char *ssid_name)
 {
     ta_wifi_ssid *ssid;
@@ -256,12 +256,12 @@ node_wifi_ssid_aname_get(unsigned int gid, const char *oid, char *value,
         return TE_RC(TE_TA_UNIX, TE_ENOENT);
 
     snprintf(value, RCF_MAX_VAL, "%s",
-        ssid->aname != NULL ? ssid->aname : "");
+        ssid->ssid != NULL ? ssid->ssid : "");
     return 0;
 }
 
 static te_errno
-node_wifi_ssid_aname_set(unsigned int gid, const char *oid, char *value,
+node_wifi_ssid_ssid_set(unsigned int gid, const char *oid, char *value,
     const char *empty, const char *port_name, const char *ssid_name)
 {
     ta_wifi_ssid *ssid;
@@ -274,8 +274,8 @@ node_wifi_ssid_aname_set(unsigned int gid, const char *oid, char *value,
     if (ssid == NULL)
         return TE_RC(TE_TA_UNIX, TE_ENOENT);
 
-    free(ssid->aname);
-    ssid->aname = TE_STRDUP(value);
+    free(ssid->ssid);
+    ssid->ssid = TE_STRDUP(value);
     return 0;
 }
 
@@ -1138,13 +1138,13 @@ RCF_PCH_CFG_NODE_RWC(node_wifi_ssid_mode, "mode",
                      node_wifi_ssid_mode_get, node_wifi_ssid_mode_set,
                      &node_wifi);
 
-RCF_PCH_CFG_NODE_RWC(node_wifi_ssid_aname, "aname",
+RCF_PCH_CFG_NODE_RWC(node_wifi_ssid_ssid, "ssid",
                      NULL, &node_wifi_ssid_mode,
-                     node_wifi_ssid_aname_get, node_wifi_ssid_aname_set,
+                     node_wifi_ssid_ssid_get, node_wifi_ssid_ssid_set,
                      &node_wifi);
 
 RCF_PCH_CFG_NODE_RWC(node_wifi_ssid_ifname, "ifname",
-                     NULL, &node_wifi_ssid_aname,
+                     NULL, &node_wifi_ssid_ssid,
                      node_wifi_ssid_ifname_get, node_wifi_ssid_ifname_set,
                      &node_wifi);
 
