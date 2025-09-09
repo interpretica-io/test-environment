@@ -144,6 +144,8 @@ ta_wifi_uci_apply_ssid(ta_wifi_cfg_context *ctx, ta_wifi_ssid *node)
         WARN("No template node for SSID '%s'", node->instance_name);
 
     CHECKED_FPRINTF(ctx->f, "config wifi-iface '%s'\n", node->instance_name);
+    if (!ctx->port->enable || !node->enable)
+        CHECKED_FPRINTF(ctx->f, "\toption disabled '1'\n");
     if (ctx->port->ifname != NULL)
         CHECKED_FPRINTF(ctx->f, "\toption device '%s'\n", ctx->port->ifname);
     if (node->ifname != NULL && strlen(node->ifname) != 0)
@@ -235,6 +237,8 @@ ta_wifi_uci_apply_port(ta_wifi_cfg_context *ctx, ta_wifi_port *node)
         WARN("No template node for port '%s'", node->ifname);
 
     CHECKED_FPRINTF(ctx->f, "config wifi-device '%s'\n", node->ifname);
+    if (!node->enable)
+        CHECKED_FPRINTF(ctx->f, "\toption disabled '1'\n");
     CHECKED_FPRINTF(ctx->f, "\toption channel '%d'\n", node->channel);
 
     infer_ht_mode(node->standard, node->width, htmode);
@@ -297,9 +301,6 @@ ta_wifi_uci_apply_port(ta_wifi_cfg_context *ctx, ta_wifi_port *node)
 
     SLIST_FOREACH(ssid, &node->ssids, links)
     {
-        if (!ssid->enable)
-            continue;
-
         CHECKED_FPRINTF(ctx->f, "\n");
         ret = ta_wifi_uci_apply_ssid(ctx, ssid);
         if (ret != 0)
@@ -377,9 +378,6 @@ ta_wifi_uci_apply(ta_wifi *node)
     /* Apply ports */
     SLIST_FOREACH(port, &node->ports, links)
     {
-        if (!port->enable)
-            continue;
-
         ret = ta_wifi_uci_apply_port(&ctx, port);
         if (ret != 0)
             goto err;
