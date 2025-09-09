@@ -82,8 +82,8 @@ typedef struct ta_wifi_option {
 typedef struct ta_wifi_ssid {
     SLIST_ENTRY(ta_wifi_ssid) links;    /**< Single-linked list connector */
     bool             enable;            /**< Enable state */
-    char            *name;              /**< Internal name of the SSID */
-    char            *ssid;              /**< Name of the SSID */
+    char            *instance_name;     /**< Instance name of the SSID */
+    char            *name;              /**< Name of the SSID */
     char            *ifname;            /**< Interface name */
     ta_wifi_mode     mode;              /**< WiFi mode */
     ta_wifi_security security;          /**< WiFi security */
@@ -96,7 +96,7 @@ typedef struct ta_wifi_ssid {
 typedef struct ta_wifi_port {
     SLIST_ENTRY(ta_wifi_port) links;    /**< Single-linked list connector */
     bool             enable;            /**< Enable state */
-    char            *name;              /**< Internal port name */
+    char            *instance_name;     /**< Internal port name */
     char            *ifname;            /**< Device name */
     ta_wifi_standard standard;          /**< WiFi standard */
     uint8_t          channel;           /**< Channel of the port */

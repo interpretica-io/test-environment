@@ -139,11 +139,11 @@ ta_wifi_uci_apply_ssid(ta_wifi_cfg_context *ctx, ta_wifi_ssid *node)
         TA_WIFI_TMPL_TYPE_IFACE, ctx->port->ifname);
 
     if (tmpl_node != NULL)
-        RING("Found template node for SSID '%s'", node->name);
+        RING("Found template node for SSID '%s'", node->instance_name);
     else
-        WARN("No template node for SSID '%s'", node->name);
+        WARN("No template node for SSID '%s'", node->instance_name);
 
-    CHECKED_FPRINTF(ctx->f, "config wifi-iface '%s'\n", node->name);
+    CHECKED_FPRINTF(ctx->f, "config wifi-iface '%s'\n", node->instance_name);
     if (ctx->port->ifname != NULL)
         CHECKED_FPRINTF(ctx->f, "\toption device '%s'\n", ctx->port->ifname);
     if (node->ifname != NULL && strlen(node->ifname) != 0)

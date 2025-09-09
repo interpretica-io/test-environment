@@ -45,8 +45,8 @@ ta_wifi_ssid_free(ta_wifi_ssid *ssid)
 {
     if (ssid != NULL)
     {
+        free(ssid->instance_name);
         free(ssid->name);
-        free(ssid->ssid);
         free(ssid->ifname);
         free(ssid->passphrase);
     }
@@ -76,7 +76,7 @@ ta_wifi_port_free(ta_wifi_port *port)
             ta_wifi_option_free(option);
         }
 
-        free(port->name);
+        free(port->instance_name);
         free(port->ifname);
     }
 
@@ -140,9 +140,9 @@ ta_wifi_port_find_ssid(const ta_wifi_port *port, const char *name)
 
     SLIST_FOREACH(ssid, &port->ssids, links)
     {
-        assert(ssid->name != NULL);
+        assert(ssid->instance_name != NULL);
 
-        if (strcmp(name, ssid->name) == 0)
+        if (strcmp(name, ssid->instance_name) == 0)
             return ssid;
     }
 
@@ -166,9 +166,9 @@ ta_wifi_find_port(const char *name)
 
     SLIST_FOREACH(port, &wifi_node.ports, links)
     {
-        assert(port->name != NULL);
+        assert(port->instance_name != NULL);
 
-        if (strcmp(name, port->name) == 0)
+        if (strcmp(name, port->instance_name) == 0)
             return port;
     }
 

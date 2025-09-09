@@ -242,7 +242,7 @@ node_wifi_ssid_protocol_set(unsigned int gid, const char *oid, char *value,
 }
 
 static te_errno
-node_wifi_ssid_ssid_get(unsigned int gid, const char *oid, char *value,
+node_wifi_ssid_name_get(unsigned int gid, const char *oid, char *value,
     const char *empty, const char *port_name, const char *ssid_name)
 {
     ta_wifi_ssid *ssid;
@@ -256,12 +256,12 @@ node_wifi_ssid_ssid_get(unsigned int gid, const char *oid, char *value,
         return TE_RC(TE_TA_UNIX, TE_ENOENT);
 
     snprintf(value, RCF_MAX_VAL, "%s",
-        ssid->ssid != NULL ? ssid->ssid : "");
+        ssid->name != NULL ? ssid->name : "");
     return 0;
 }
 
 static te_errno
-node_wifi_ssid_ssid_set(unsigned int gid, const char *oid, char *value,
+node_wifi_ssid_name_set(unsigned int gid, const char *oid, char *value,
     const char *empty, const char *port_name, const char *ssid_name)
 {
     ta_wifi_ssid *ssid;
@@ -274,8 +274,8 @@ node_wifi_ssid_ssid_set(unsigned int gid, const char *oid, char *value,
     if (ssid == NULL)
         return TE_RC(TE_TA_UNIX, TE_ENOENT);
 
-    free(ssid->ssid);
-    ssid->ssid = TE_STRDUP(value);
+    free(ssid->name);
+    ssid->name = TE_STRDUP(value);
     return 0;
 }
 
@@ -379,7 +379,7 @@ node_wifi_port_ssid_add(unsigned int gid, const char *oid, const char *value,
 
     ssid = TE_ALLOC(sizeof(*ssid));
 
-    ssid->name = TE_STRDUP(ssid_name);
+    ssid->instance_name = TE_STRDUP(ssid_name);
     ssid->security = TA_WIFI_SECURITY_WPA2;
     ssid->protocol = TA_WIFI_PROTOCOL_CCMP;
 
@@ -429,7 +429,7 @@ node_wifi_port_ssid_list(unsigned int gid, const char *oid, const char *sub_id,
     SLIST_FOREACH(ssid, &port->ssids, links)
     {
         te_string_append(&str, "%s%s",
-                         (str.ptr != NULL) ? " " : "", ssid->name);
+                         (str.ptr != NULL) ? " " : "", ssid->instance_name);
     }
 
     *list = str.ptr;
@@ -1050,7 +1050,7 @@ port_add(unsigned int gid, const char *oid, const char *value,
 
     port = TE_ALLOC(sizeof(*port));
 
-    port->name = TE_STRDUP(name);
+    port->instance_name = TE_STRDUP(name);
     port->standard = TA_WIFI_STANDARD_G;
     SLIST_INIT(&port->ssids);
 
@@ -1098,7 +1098,7 @@ port_list(unsigned int gid, const char *oid,
     SLIST_FOREACH(port, &ta_wifi_get_node()->ports, links)
     {
         te_string_append(&str, "%s%s",
-                         (str.ptr != NULL) ? " " : "", port->name);
+                         (str.ptr != NULL) ? " " : "", port->instance_name);
     }
 
     *list = str.ptr;
@@ -1138,13 +1138,13 @@ RCF_PCH_CFG_NODE_RWC(node_wifi_ssid_mode, "mode",
                      node_wifi_ssid_mode_get, node_wifi_ssid_mode_set,
                      &node_wifi);
 
-RCF_PCH_CFG_NODE_RWC(node_wifi_ssid_ssid, "ssid",
+RCF_PCH_CFG_NODE_RWC(node_wifi_ssid_name, "ssid",
                      NULL, &node_wifi_ssid_mode,
-                     node_wifi_ssid_ssid_get, node_wifi_ssid_ssid_set,
+                     node_wifi_ssid_name_get, node_wifi_ssid_name_set,
                      &node_wifi);
 
 RCF_PCH_CFG_NODE_RWC(node_wifi_ssid_ifname, "ifname",
-                     NULL, &node_wifi_ssid_ssid,
+                     NULL, &node_wifi_ssid_name,
                      node_wifi_ssid_ifname_get, node_wifi_ssid_ifname_set,
                      &node_wifi);
 
