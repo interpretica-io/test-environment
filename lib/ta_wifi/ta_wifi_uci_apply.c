@@ -297,6 +297,9 @@ ta_wifi_uci_apply_port(ta_wifi_cfg_context *ctx, ta_wifi_port *node)
 
     SLIST_FOREACH(ssid, &node->ssids, links)
     {
+        if (!ssid->enable)
+            continue;
+
         CHECKED_FPRINTF(ctx->f, "\n");
         ret = ta_wifi_uci_apply_ssid(ctx, ssid);
         if (ret != 0)
@@ -374,6 +377,9 @@ ta_wifi_uci_apply(ta_wifi *node)
     /* Apply ports */
     SLIST_FOREACH(port, &node->ports, links)
     {
+        if (!port->enable)
+            continue;
+
         ret = ta_wifi_uci_apply_port(&ctx, port);
         if (ret != 0)
             goto err;

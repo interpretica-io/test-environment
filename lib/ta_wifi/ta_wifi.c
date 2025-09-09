@@ -318,6 +318,48 @@ node_wifi_ssid_ifname_set(unsigned int gid, const char *oid, char *value,
 }
 
 static te_errno
+node_wifi_ssid_enable_get(unsigned int gid, const char *oid, char *value,
+    const char *empty, const char *port_name, const char *ssid_name)
+{
+    ta_wifi_ssid *ssid;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    ssid = ta_wifi_port_find_ssid(ta_wifi_find_port(port_name), ssid_name);
+    if (ssid == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    sprintf(value, "%d", ssid->enable ? 1 : 0);
+    return 0;
+}
+
+static te_errno
+node_wifi_ssid_enable_set(unsigned int gid, const char *oid, char *value,
+    const char *empty, const char *port_name, const char *ssid_name)
+{
+    ta_wifi_ssid *ssid;
+    bool          result;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    ssid = ta_wifi_port_find_ssid(ta_wifi_find_port(port_name), ssid_name);
+    if (ssid == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    ret = te_strtol_bool(value, &result);
+    if (ret != 0)
+        return ret;
+
+    ssid->enable = result;
+
+    return 0;
+}
+
+static te_errno
 node_wifi_port_ssid_add(unsigned int gid, const char *oid, const char *value,
     const char *empty, const char *port_name, const char *ssid_name)
 {
@@ -730,6 +772,50 @@ node_wifi_port_channel_set(unsigned int gid, const char *oid, const char *value,
 }
 
 static te_errno
+node_wifi_port_enable_get(unsigned int gid, const char *oid, char *value,
+    const char *empty, const char *port_name)
+{
+    ta_wifi_port *port;
+    te_errno rc;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    ENTRY("%s", port_name);
+
+    port = ta_wifi_find_port(port_name);
+    if (port == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    rc = te_snprintf(value, RCF_MAX_VAL, "%u", port->enable ? 1U : 0U);
+    return TE_RC_UPSTREAM(TE_TA_UNIX, rc);
+}
+
+static te_errno
+node_wifi_port_enable_set(unsigned int gid, const char *oid, const char *value,
+    const char *empty, const char *port_name)
+{
+    ta_wifi_port *port;
+    te_errno rc;
+
+    UNUSED(gid);
+    UNUSED(oid);
+    UNUSED(empty);
+
+    ENTRY("%s", port_name);
+
+    port = ta_wifi_find_port(port_name);
+    if (port == NULL)
+        return TE_RC(TE_TA_UNIX, TE_ENOENT);
+
+    rc = te_strtou_size(value, 0, &port->enable, sizeof(port->enable));
+
+    return TE_RC_UPSTREAM(TE_TA_UNIX, rc);
+}
+
+
+static te_errno
 node_wifi_configurator_get(unsigned int gid, const char *oid, char *value,
     const char *empty)
 {
@@ -1062,8 +1148,13 @@ RCF_PCH_CFG_NODE_RWC(node_wifi_ssid_ifname, "ifname",
                      node_wifi_ssid_ifname_get, node_wifi_ssid_ifname_set,
                      &node_wifi);
 
+RCF_PCH_CFG_NODE_RWC(node_wifi_ssid_enable, "enable",
+                     NULL, &node_wifi_ssid_ifname,
+                     node_wifi_ssid_enable_get, node_wifi_ssid_enable_set,
+                     &node_wifi);
+
 RCF_PCH_CFG_NODE_COLLECTION(node_wifi_ssid, "ssid",
-                            &node_wifi_ssid_ifname, NULL,
+                            &node_wifi_ssid_enable, NULL,
                             node_wifi_port_ssid_add,
                             node_wifi_port_ssid_del,
                             node_wifi_port_ssid_list, NULL);
@@ -1172,8 +1263,13 @@ RCF_PCH_CFG_NODE_RWC(node_wifi_port_ifname, "ifname",
                      node_wifi_port_ifname_get, node_wifi_port_ifname_set,
                      &node_wifi);
 
+RCF_PCH_CFG_NODE_RWC(node_wifi_port_enable, "enable",
+                     NULL, &node_wifi_port_ifname,
+                     node_wifi_port_enable_get, node_wifi_port_enable_set,
+                     &node_wifi);
+
 RCF_PCH_CFG_NODE_COLLECTION(node_wifi_port, "port",
-                            &node_wifi_port_ifname, NULL,
+                            &node_wifi_port_enable, NULL,
                             port_add, port_del, port_list, NULL);
 
 RCF_PCH_CFG_NODE_RO(node_wifi_status, "status",
