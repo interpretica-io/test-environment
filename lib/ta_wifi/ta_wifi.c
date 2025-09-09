@@ -1140,7 +1140,7 @@ RCF_PCH_CFG_NODE_RWC(node_wifi_ssid_mode, "mode",
                      node_wifi_ssid_mode_get, node_wifi_ssid_mode_set,
                      &node_wifi);
 
-RCF_PCH_CFG_NODE_RWC(node_wifi_ssid_name, "ssid",
+RCF_PCH_CFG_NODE_RWC(node_wifi_ssid_name, "name",
                      NULL, &node_wifi_ssid_mode,
                      node_wifi_ssid_name_get, node_wifi_ssid_name_set,
                      &node_wifi);
