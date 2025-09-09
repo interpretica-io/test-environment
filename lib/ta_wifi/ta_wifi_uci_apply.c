@@ -30,6 +30,9 @@
 /** UCI wireless configuration */
 #define OPENWRT_CONFIG "/etc/config/wireless"
 
+/** Size of ht_mode field in bytes */
+#define HT_MODE_SIZE (3 + 3 + 1)
+
 /** Configuration context */
 typedef struct ta_wifi_cfg_context {
     FILE   *f;                      /**< File where to write data */
@@ -56,6 +59,29 @@ static const char *wifi_mode2str[] = {
     [TA_WIFI_MODE_STA] = "sta",
 };
 
+static void
+infer_ht_mode(ta_wifi_standard std, ta_wifi_width width, char *htmode)
+{
+    switch (std)
+    {
+        default:
+        case TA_WIFI_STANDARD_G:
+        case TA_WIFI_STANDARD_N:
+            strcpy(htmode, "HT");
+            break;
+        case TA_WIFI_STANDARD_AC:
+            strcpy(htmode, "VHT");
+            break;
+        case TA_WIFI_STANDARD_AX:
+            strcpy(htmode, "HE");
+            break;
+        case TA_WIFI_STANDARD_BE:
+            strcpy(htmode, "EHT");
+            break;
+    }
+
+    sprintf(htmode + strlen(htmode), "%d", width);
+}
 
 /* HT modes (not perfect mapping) */
 static const char *wifi_standard2htmode[] = {
@@ -191,6 +217,7 @@ ta_wifi_uci_apply_port(ta_wifi_cfg_context *ctx, ta_wifi_port *node)
     ta_wifi_ssid          *ssid;
     ta_wifi_option        *option;
     ta_wifi_tmpl_node     *tmpl_node;
+    char                   htmode[HT_MODE_SIZE];
 
     assert(ctx != NULL);
     assert(ctx->f != NULL);
@@ -209,8 +236,9 @@ ta_wifi_uci_apply_port(ta_wifi_cfg_context *ctx, ta_wifi_port *node)
 
     CHECKED_FPRINTF(ctx->f, "config wifi-device '%s'\n", node->ifname);
     CHECKED_FPRINTF(ctx->f, "\toption channel '%d'\n", node->channel);
-    CHECKED_FPRINTF(ctx->f, "\toption htmode '%s'\n",
-        te_enum_map_from_value(wifi_htmode_mapping, node->htmode));
+
+    infer_ht_mode(node->standard, node->width, htmode);
+    CHECKED_FPRINTF(ctx->f, "\toption htmode '%s'\n", htmode);
     CHECKED_FPRINTF(ctx->f, "\toption hwmode '%s'\n",
         wifi_standard2hwmode[node->standard]);
     CHECKED_FPRINTF(ctx->f, "\toption wifi_radio_instance '%d'\n",

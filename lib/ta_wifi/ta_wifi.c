@@ -44,23 +44,13 @@ static const te_enum_map wifi_standard_mapping[] = {
     TE_ENUM_MAP_END
 };
 
-/** Mapping of supported HT modes */
-const te_enum_map wifi_htmode_mapping[] = {
-    { .name = "NOHT", .value = TA_WIFI_HT_MODE_NOHT },
-    { .name = "HT20", .value = TA_WIFI_HT_MODE_HT20 },
-    { .name = "HT40", .value = TA_WIFI_HT_MODE_HT40 },
-    { .name = "HT40+", .value = TA_WIFI_HT_MODE_HT40P },
-    { .name = "HT40-", .value = TA_WIFI_HT_MODE_HT40M },
-    { .name = "VHT20", .value = TA_WIFI_HT_MODE_VHT20 },
-    { .name = "VHT40", .value = TA_WIFI_HT_MODE_VHT40 },
-    { .name = "VHT80", .value = TA_WIFI_HT_MODE_VHT80 },
-    { .name = "VHT160", .value = TA_WIFI_HT_MODE_VHT160 },
-    { .name = "VHT320", .value = TA_WIFI_HT_MODE_VHT320 },
-    { .name = "HE20", .value = TA_WIFI_HT_MODE_HE20 },
-    { .name = "HE40", .value = TA_WIFI_HT_MODE_HE40 },
-    { .name = "HE80", .value = TA_WIFI_HT_MODE_HE80 },
-    { .name = "HE160", .value = TA_WIFI_HT_MODE_HE160 },
-    { .name = "HE320", .value = TA_WIFI_HT_MODE_HE320 },
+/** Mapping of supported widths */
+const te_enum_map wifi_width_mapping[] = {
+    { .name = "20", .value = TA_WIFI_WIDTH_20 },
+    { .name = "40", .value = TA_WIFI_WIDTH_40 },
+    { .name = "80", .value = TA_WIFI_WIDTH_80 },
+    { .name = "160", .value = TA_WIFI_WIDTH_160 },
+    { .name = "320", .value = TA_WIFI_WIDTH_320 },
     TE_ENUM_MAP_END
 };
 
@@ -940,7 +930,7 @@ node_wifi_port_standard_set(unsigned int gid, const char *oid,
 }
 
 static te_errno
-node_wifi_port_htmode_get(unsigned int gid, const char *oid, char *value,
+node_wifi_port_width_get(unsigned int gid, const char *oid, char *value,
     const char *empty, const char *port_name)
 {
     ta_wifi_port *port;
@@ -955,12 +945,12 @@ node_wifi_port_htmode_get(unsigned int gid, const char *oid, char *value,
         return TE_RC(TE_TA_UNIX, TE_ENOENT);
 
     rc = te_snprintf(value, RCF_MAX_VAL, "%s",
-             te_enum_map_from_value(wifi_htmode_mapping, port->htmode));
+             te_enum_map_from_value(wifi_width_mapping, port->width));
     return TE_RC_UPSTREAM(TE_TA_UNIX, rc);
 }
 
 static te_errno
-node_wifi_port_htmode_set(unsigned int gid, const char *oid,
+node_wifi_port_width_set(unsigned int gid, const char *oid,
     const char *value, const char *empty, const char *port_name)
 {
     ta_wifi_port *port;
@@ -974,11 +964,11 @@ node_wifi_port_htmode_set(unsigned int gid, const char *oid,
     if (port == NULL)
         return TE_RC(TE_TA_UNIX, TE_ENOENT);
 
-    mapped = te_enum_map_from_str(wifi_htmode_mapping, value, -1);
+    mapped = te_enum_map_from_str(wifi_width_mapping, value, -1);
     if (mapped < 0)
         return TE_RC(TE_TA_UNIX, TE_EINVAL);
 
-    port->htmode = mapped;
+    port->width = mapped;
     REENABLE();
 
     return 0;
@@ -1196,12 +1186,12 @@ RCF_PCH_CFG_NODE_RW(node_wifi_port_standard, "standard",
                     NULL, &node_wifi_port_channel,
                     node_wifi_port_standard_get, node_wifi_port_standard_set);
 
-RCF_PCH_CFG_NODE_RW(node_wifi_port_htmode, "htmode",
+RCF_PCH_CFG_NODE_RW(node_wifi_port_width, "width",
                     NULL, &node_wifi_port_standard,
-                    node_wifi_port_htmode_get, node_wifi_port_htmode_set);
+                    node_wifi_port_width_get, node_wifi_port_width_set);
 
 RCF_PCH_CFG_NODE_RW(node_wifi_port_ifname, "ifname",
-                    NULL, &node_wifi_port_htmode,
+                    NULL, &node_wifi_port_width,
                     node_wifi_port_ifname_get, node_wifi_port_ifname_set);
 
 RCF_PCH_CFG_NODE_COLLECTION(node_wifi_port, "port",
