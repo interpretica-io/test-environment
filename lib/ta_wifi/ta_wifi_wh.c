@@ -255,7 +255,15 @@ try_kill_pid(const char *pid_path)
 
     ret = kill(pid, SIGTERM);
     if (ret != 0)
-        return TE_OS_RC(TE_TA_UNIX, errno);
+    {
+        ret = kill(pid, SIGKILL);
+        if (ret != 0)
+        {
+            return TE_OS_RC(TE_TA_UNIX, errno);
+        }
+    }
+
+    unlink(pid_path);
 
     return 0;
 }
