@@ -82,7 +82,7 @@
 
     - oid: "/agent/wifi/port/width"
       access: read_write
-      type: string
+      type: uint32
       d: |
          Bandwidth
          Name: empty
