@@ -38,6 +38,7 @@ static const te_enum_map wifi_standard_mapping[] = {
 
 /** Mapping of supported widths */
 const te_enum_map wifi_width_mapping[] = {
+    { .name = "0", .value = TA_WIFI_WIDTH_NOT_SET },
     { .name = "20", .value = TA_WIFI_WIDTH_20 },
     { .name = "40", .value = TA_WIFI_WIDTH_40 },
     { .name = "80", .value = TA_WIFI_WIDTH_80 },

@@ -241,8 +241,11 @@ ta_wifi_uci_apply_port(ta_wifi_cfg_context *ctx, ta_wifi_port *node)
         CHECKED_FPRINTF(ctx->f, "\toption disabled '1'\n");
     CHECKED_FPRINTF(ctx->f, "\toption channel '%d'\n", node->channel);
 
-    infer_ht_mode(node->standard, node->width, htmode);
-    CHECKED_FPRINTF(ctx->f, "\toption htmode '%s'\n", htmode);
+    if (node->width != TA_WIFI_WIDTH_NOT_SET)
+    {
+        infer_ht_mode(node->standard, node->width, htmode);
+        CHECKED_FPRINTF(ctx->f, "\toption htmode '%s'\n", htmode);
+    }
     CHECKED_FPRINTF(ctx->f, "\toption hwmode '%s'\n",
         wifi_standard2hwmode[node->standard]);
     CHECKED_FPRINTF(ctx->f, "\toption wifi_radio_instance '%d'\n",

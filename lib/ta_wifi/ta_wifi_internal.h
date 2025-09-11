@@ -44,6 +44,7 @@ typedef enum ta_wifi_standard {
 
 /** Supported WiFi bandwidths */
 typedef enum ta_wifi_width {
+    TA_WIFI_WIDTH_NOT_SET = 0,              /**< Not set */
     TA_WIFI_WIDTH_20 = 20,                  /**< 20 MHz */
     TA_WIFI_WIDTH_40 = 40,                  /**< 40 MHz */
     TA_WIFI_WIDTH_80 = 80,                  /**< 80 MHz */
