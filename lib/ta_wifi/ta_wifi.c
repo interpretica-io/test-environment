@@ -883,9 +883,6 @@ node_wifi_enable_set(unsigned int gid, const char *oid,
 
     ta_wifi_get_node()->enable = result;
 
-    ret = ta_unix_conf_wifi_apply();
-    ta_wifi_get_node()->status = ret == 0;
-
     return 0;
 }
 
