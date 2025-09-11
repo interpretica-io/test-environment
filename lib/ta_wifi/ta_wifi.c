@@ -1365,6 +1365,12 @@ ta_unix_conf_wifi_init(void)
 {
     te_errno rc;
 
+    rc = rcf_pch_rsrc_info("/agent/wifi",
+                           rcf_pch_rsrc_grab_dummy,
+                           rcf_pch_rsrc_release_dummy);
+    if (rc != 0)
+        return rc;
+
     rc = rcf_pch_add_node("/agent", &node_wifi);
     if (rc != 0)
         return rc;
