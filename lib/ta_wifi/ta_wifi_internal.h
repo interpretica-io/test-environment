@@ -61,6 +61,7 @@ typedef enum ta_wifi_mode {
 /** Supported WiFi security */
 typedef enum ta_wifi_security {
     TA_WIFI_SECURITY_OPEN = 0,          /**< No security (no password) */
+    TA_WIFI_SECURITY_WEP,               /**< WEP security */
     TA_WIFI_SECURITY_WPA,               /**< WPA security */
     TA_WIFI_SECURITY_WPA2,              /**< WPA2 security */
     TA_WIFI_SECURITY_WPA3,              /**< WPA3 security */

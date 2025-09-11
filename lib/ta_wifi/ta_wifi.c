@@ -50,6 +50,7 @@ const te_enum_map wifi_width_mapping[] = {
 /** Mapping of supported WiFi security */
 static const te_enum_map wifi_security_mapping[] = {
     { .name = "open", .value = TA_WIFI_SECURITY_OPEN },
+    { .name = "wep", .value = TA_WIFI_SECURITY_WEP },
     { .name = "wpa", .value = TA_WIFI_SECURITY_WPA },
     { .name = "wpa2", .value = TA_WIFI_SECURITY_WPA2 },
     { .name = "wpa3", .value = TA_WIFI_SECURITY_WPA3 },
