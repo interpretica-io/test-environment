@@ -125,23 +125,60 @@ ta_wifi_wh_apply_wpas_ssid(ta_wifi_wh_context *ctx, ta_wifi_ssid *ssid)
     CHECKED_FPRINTF(ctx->f, "network={\n");
     CHECKED_FPRINTF(ctx->f, "ssid=\"%s\"\n", ssid->name);
 
-    if (ssid->security != TA_WIFI_SECURITY_OPEN)
+    if (ssid->security == TA_WIFI_SECURITY_OPEN)
     {
-        if (port->standard == TA_WIFI_STANDARD_BE)
-        {
-            CHECKED_FPRINTF(ctx->f, "key_mgmt=SAE\n");
-            CHECKED_FPRINTF(ctx->f, "sae_password=\"%s\"\n", ssid->passphrase);
-            CHECKED_FPRINTF(ctx->f, "ieee80211w=2\n");
-        }
-        else
-        {
-            CHECKED_FPRINTF(ctx->f, "key_mgmt=WPA-PSK\n");
-            CHECKED_FPRINTF(ctx->f, "psk=\"%s\"\n", ssid->passphrase);
-        }
+        CHECKED_FPRINTF(ctx->f, "key_mgmt=NONE\n");
+    }
+    else if (ssid->security == TA_WIFI_SECURITY_WPA3 || port->standard == TA_WIFI_STANDARD_BE)
+    {
+        CHECKED_FPRINTF(ctx->f, "key_mgmt=SAE\n");
+        CHECKED_FPRINTF(ctx->f, "sae_password=\"%s\"\n", ssid->passphrase);
+        CHECKED_FPRINTF(ctx->f, "ieee80211w=2\n");
+        CHECKED_FPRINTF(ctx->f, "proto=RSN\n");
+    }
+    else if (ssid->security == TA_WIFI_SECURITY_WEP)
+    {
+        CHECKED_FPRINTF(ctx->f, "key_mgmt=NONE\n");
+        CHECKED_FPRINTF(ctx->f, "wep_key0=\"%s\"\n", ssid->passphrase);
+        CHECKED_FPRINTF(ctx->f, "wep_tx_keyidx=0\n");
     }
     else
     {
-        CHECKED_FPRINTF(ctx->f, "key_mgmt=NONE\n");
+        /* PSK variants */
+        CHECKED_FPRINTF(ctx->f, "key_mgmt=WPA-PSK\n");
+        CHECKED_FPRINTF(ctx->f, "psk=\"%s\"\n", ssid->passphrase);
+        if (ssid->security == TA_WIFI_SECURITY_WPA)
+        {
+            CHECKED_FPRINTF(ctx->f, "proto=WPA\n");
+        }
+        else if (ssid->security == TA_WIFI_SECURITY_WPA2)
+        {
+            CHECKED_FPRINTF(ctx->f, "proto=RSN\n");
+        }
+    }
+
+
+    switch (ssid->protocol)
+    {
+        case TA_WIFI_PROTOCOL_TKIP:
+        {
+            if (ssid->security == TA_WIFI_SECURITY_WPA3  || port->standard == TA_WIFI_STANDARD_BE)
+            {
+                ERROR("Invalid specification of protocol: TKIP can't be used with WPA3");
+                ret = -1;
+                goto err;
+            }
+
+            CHECKED_FPRINTF(ctx->f, "pairwise=TKIP\n");
+            CHECKED_FPRINTF(ctx->f, "group=TKIP\n");
+            break;
+        }
+        case TA_WIFI_PROTOCOL_CCMP:
+        {
+            CHECKED_FPRINTF(ctx->f, "pairwise=CCMP\n");
+            CHECKED_FPRINTF(ctx->f, "group=CCMP\n");
+            break;
+        }
     }
 
     CHECKED_FPRINTF(ctx->f, "scan_ssid=1\n");
