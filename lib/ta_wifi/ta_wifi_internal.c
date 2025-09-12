@@ -24,7 +24,7 @@
 /* Main WiFi agent's node */
 static ta_wifi wifi_node = {
     .ports = SLIST_HEAD_INITIALIZER(ports),
-    .configurator = TA_WIFI_CFG_UCI,
+    .configurator = TA_WIFI_CFG_AUTO,
 };
 
 /* See the description in ta_wifi_internal.h */

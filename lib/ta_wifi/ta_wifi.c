@@ -22,6 +22,10 @@
 #include "ta_wifi_internal.h"
 #include "ta_wifi_uci.h"
 
+#if HAVE_SYS_STAT_H
+#include <sys/stat.h>
+#endif
+
 static rcf_pch_cfg_object node_wifi;
 
 static te_errno ta_unix_conf_wifi_apply(void);
@@ -66,6 +70,7 @@ static const te_enum_map wifi_mode_mapping[] = {
 
 /** Mapping of supported WiFi configurators */
 static const te_enum_map wifi_configurator_mapping[] = {
+    { .name = "auto", .value = TA_WIFI_CFG_AUTO },
     { .name = "hostapd_wpa_supplicant", .value = TA_WIFI_CFG_HOSTAPD_WPA_SUPPLICANT },
     { .name = "uci", .value = TA_WIFI_CFG_UCI },
     TE_ENUM_MAP_END
@@ -1313,6 +1318,30 @@ node_wifi_commit(unsigned int gid, const cfg_oid *p_oid)
 RCF_PCH_CFG_NODE_NA_COMMIT(node_wifi, "wifi", &node_wifi_configurator, NULL,
                            node_wifi_commit);
 
+/* Infer the configurator from the system */
+static ta_wifi_configurator
+infer_configurator(ta_wifi_configurator cfg)
+{
+    switch (cfg)
+    {
+        case TA_WIFI_CFG_AUTO:
+        {
+            struct stat st;
+
+            if (stat("/sbin/uci", &st) == 0)
+            {
+                return TA_WIFI_CFG_UCI;
+            }
+
+            return TA_WIFI_CFG_HOSTAPD_WPA_SUPPLICANT;
+        }
+        default:
+        {
+            return cfg;
+        }
+    }
+}
+
 /* Apply WiFi configuration */
 static te_errno
 ta_unix_conf_wifi_apply(void)
@@ -1325,7 +1354,7 @@ ta_unix_conf_wifi_apply(void)
 
     if (ta_wifi_get_node()->enable)
     {
-        switch (ta_wifi_get_node()->configurator)
+        switch (infer_configurator(ta_wifi_get_node()->configurator))
         {
             case TA_WIFI_CFG_UCI:
             {
@@ -1350,7 +1379,7 @@ ta_unix_conf_wifi_apply(void)
 static te_errno
 ta_unix_conf_wifi_cancel(void)
 {
-    switch (ta_wifi_get_node()->configurator)
+    switch (infer_configurator(ta_wifi_get_node()->configurator))
     {
         case TA_WIFI_CFG_UCI:
             return ta_wifi_uci_cancel(ta_wifi_get_node());

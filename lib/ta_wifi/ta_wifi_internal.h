@@ -27,7 +27,9 @@ typedef SLIST_HEAD(wifi_ssids, ta_wifi_ssid) wifi_ssids;
 
 /** Supported WiFi configurators */
 typedef enum ta_wifi_configurator {
-    TA_WIFI_CFG_HOSTAPD_WPA_SUPPLICANT = 0, /**< hostapd/wpa_supplicant
+    TA_WIFI_CFG_AUTO = 0,                   /**< Automatic detection of
+                                                 configurator */
+    TA_WIFI_CFG_HOSTAPD_WPA_SUPPLICANT,     /**< hostapd/wpa_supplicant
                                                  configurator */
     TA_WIFI_CFG_UCI,                        /**< UCI configurator */
 } ta_wifi_configurator;
