@@ -14,6 +14,7 @@
 #include "logger_api.h"
 #include "agentlib.h"
 #include "te_enum.h"
+#include "te_str.h"
 
 #if HAVE_UNISTD_H
 #include <unistd.h>
@@ -155,7 +156,8 @@ ta_wifi_uci_apply_ssid(ta_wifi_cfg_context *ctx, ta_wifi_ssid *node)
     CHECKED_FPRINTF(ctx->f, "\toption ssid '%s'\n", node->name);
     CHECKED_FPRINTF(ctx->f, "\toption encryption '%s'\n",
         wifi_security2enc[node->security]);
-    CHECKED_FPRINTF(ctx->f, "\toption key '%s'\n", node->passphrase);
+    if (!te_str_is_null_or_empty(node->passphrase))
+        CHECKED_FPRINTF(ctx->f, "\toption key '%s'\n", node->passphrase);
     CHECKED_FPRINTF(ctx->f, "\toption wifi_iface_instance '%d'\n",
         ctx->iface_instance);
 
