@@ -299,6 +299,7 @@ te_vec_tokenize_string(const char *str, te_vec *strvec, char *sep_symbols)
         tmp_part = TE_STRDUP(part);
 
         TE_VEC_APPEND(strvec, tmp_part);
+        part = strtok(NULL, sep_symbols);
     }
     free(str_copy);
 
