@@ -1307,12 +1307,8 @@ node_wifi_commit(unsigned int gid, const cfg_oid *p_oid)
         ret = ta_unix_conf_wifi_apply();
         ta_wifi_get_node()->status = (ret == 0);
     }
-    else
-    {
-        ret = 0;
-    }
 
-    return ret;
+    return 0;
 }
 
 RCF_PCH_CFG_NODE_NA_COMMIT(node_wifi, "wifi", &node_wifi_configurator, NULL,
