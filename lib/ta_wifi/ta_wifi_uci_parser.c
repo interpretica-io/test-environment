@@ -210,5 +210,7 @@ ta_wifi_uci_parser_parse(const char *path,
 
     ret = 0;
 err:
+    if (f != NULL)
+        fclose(f);
     return ret;
 }
