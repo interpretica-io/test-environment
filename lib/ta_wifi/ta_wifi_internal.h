@@ -14,6 +14,8 @@
 #include "config.h"
 #include "rcf_common.h"
 
+#include "ta_wifi_def.h"
+
 #if HAVE_SYS_QUEUE_H
 #include <sys/queue.h>
 #endif
@@ -25,55 +27,6 @@ extern "C" {
 /** List of SSIDs */
 typedef SLIST_HEAD(wifi_ssids, ta_wifi_ssid) wifi_ssids;
 
-/** Supported WiFi configurators */
-typedef enum ta_wifi_configurator {
-    TA_WIFI_CFG_AUTO = 0,                   /**< Automatic detection of
-                                                 configurator */
-    TA_WIFI_CFG_HOSTAPD_WPA_SUPPLICANT,     /**< hostapd/wpa_supplicant
-                                                 configurator */
-    TA_WIFI_CFG_UCI,                        /**< UCI configurator */
-} ta_wifi_configurator;
-
-
-/** Supported WiFi standards */
-typedef enum ta_wifi_standard {
-    TA_WIFI_STANDARD_G = 0,             /**< G standard (2.4GHz) */
-    TA_WIFI_STANDARD_N,                 /**< N standard (2.4GHz) */
-    TA_WIFI_STANDARD_AC,                /**< AC standard (5GHz) */
-    TA_WIFI_STANDARD_AX,                /**< AX standard (2.4/5GHz) */
-    TA_WIFI_STANDARD_BE,                /**< BE standard (2.4/5/6GHz) */
-} ta_wifi_standard;
-
-/** Supported WiFi bandwidths */
-typedef enum ta_wifi_width {
-    TA_WIFI_WIDTH_NOT_SET = 0,              /**< Not set */
-    TA_WIFI_WIDTH_20 = 20,                  /**< 20 MHz */
-    TA_WIFI_WIDTH_40 = 40,                  /**< 40 MHz */
-    TA_WIFI_WIDTH_80 = 80,                  /**< 80 MHz */
-    TA_WIFI_WIDTH_160 = 160,                /**< 160 MHz */
-    TA_WIFI_WIDTH_320 = 320,                /**< 320 MHz */
-} ta_wifi_width;
-
-/** Supported WiFi modes */
-typedef enum ta_wifi_mode {
-    TA_WIFI_MODE_AP = 0,                /**< Access point mode */
-    TA_WIFI_MODE_STA,                   /**< STA mode */
-} ta_wifi_mode;
-
-/** Supported WiFi security */
-typedef enum ta_wifi_security {
-    TA_WIFI_SECURITY_OPEN = 0,          /**< No security (no password) */
-    TA_WIFI_SECURITY_WEP,               /**< WEP security */
-    TA_WIFI_SECURITY_WPA,               /**< WPA security */
-    TA_WIFI_SECURITY_WPA2,              /**< WPA2 security */
-    TA_WIFI_SECURITY_WPA3,              /**< WPA3 security */
-} ta_wifi_security;
-
-/** Supported WiFi protocols */
-typedef enum ta_wifi_protocol {
-    TA_WIFI_PROTOCOL_CCMP = 0,          /**< CCMP protocol */
-    TA_WIFI_PROTOCOL_TKIP,              /**< TKIP protocol */
-} ta_wifi_protocol;
 
 /** Extra option */
 typedef struct ta_wifi_option {

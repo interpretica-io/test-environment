@@ -31,58 +31,6 @@ static rcf_pch_cfg_object node_wifi;
 static te_errno ta_unix_conf_wifi_apply(void);
 static te_errno ta_unix_conf_wifi_cancel(void);
 
-/** Mapping of supported WiFi standards */
-static const te_enum_map wifi_standard_mapping[] = {
-    { .name = "g", .value = TA_WIFI_STANDARD_G },
-    { .name = "n", .value = TA_WIFI_STANDARD_N },
-    { .name = "ac", .value = TA_WIFI_STANDARD_AC },
-    { .name = "ax", .value = TA_WIFI_STANDARD_AX },
-    TE_ENUM_MAP_END
-};
-
-/** Mapping of supported widths */
-const te_enum_map wifi_width_mapping[] = {
-    { .name = "0", .value = TA_WIFI_WIDTH_NOT_SET },
-    { .name = "20", .value = TA_WIFI_WIDTH_20 },
-    { .name = "40", .value = TA_WIFI_WIDTH_40 },
-    { .name = "80", .value = TA_WIFI_WIDTH_80 },
-    { .name = "160", .value = TA_WIFI_WIDTH_160 },
-    { .name = "320", .value = TA_WIFI_WIDTH_320 },
-    TE_ENUM_MAP_END
-};
-
-/** Mapping of supported WiFi security */
-static const te_enum_map wifi_security_mapping[] = {
-    { .name = "open", .value = TA_WIFI_SECURITY_OPEN },
-    { .name = "wep", .value = TA_WIFI_SECURITY_WEP },
-    { .name = "wpa", .value = TA_WIFI_SECURITY_WPA },
-    { .name = "wpa2", .value = TA_WIFI_SECURITY_WPA2 },
-    { .name = "wpa3", .value = TA_WIFI_SECURITY_WPA3 },
-    TE_ENUM_MAP_END
-};
-
-/** Mapping of supported WiFi modes */
-static const te_enum_map wifi_mode_mapping[] = {
-    { .name = "ap", .value = TA_WIFI_MODE_AP },
-    { .name = "sta", .value = TA_WIFI_MODE_STA },
-    TE_ENUM_MAP_END
-};
-
-/** Mapping of supported WiFi configurators */
-static const te_enum_map wifi_configurator_mapping[] = {
-    { .name = "auto", .value = TA_WIFI_CFG_AUTO },
-    { .name = "hostapd_wpa_supplicant", .value = TA_WIFI_CFG_HOSTAPD_WPA_SUPPLICANT },
-    { .name = "uci", .value = TA_WIFI_CFG_UCI },
-    TE_ENUM_MAP_END
-};
-
-/** Mapping of supported WiFi protocols */
-static const te_enum_map wifi_protocol_mapping[] = {
-    { .name = "ccmp", .value = TA_WIFI_PROTOCOL_CCMP },
-    { .name = "tkip", .value = TA_WIFI_PROTOCOL_TKIP },
-    TE_ENUM_MAP_END
-};
-
 static te_errno
 node_wifi_ssid_passphrase_get(unsigned int gid, const char *oid, char *value,
     const char *empty, const char *port_name, const char *ssid_name)
@@ -448,8 +396,9 @@ node_wifi_port_ssid_list(unsigned int gid, const char *oid, const char *sub_id,
 
 /** Set custom option value */
 static te_errno
-node_wifi_port_option_value_set(unsigned int gid, const char *oid, const char *value,
-                      const char *empty, const char *port_name, const char *option_name)
+node_wifi_port_option_value_set(unsigned int gid, const char *oid,
+    const char *value, const char *empty, const char *port_name,
+    const char *option_name)
 {
     ta_wifi_port *port;
     ta_wifi_option *option;
@@ -550,8 +499,8 @@ node_wifi_port_option_del(unsigned int gid, const char *oid,
 }
 
 static te_errno
-node_wifi_port_option_list(unsigned int gid, const char *oid, const char *sub_id,
-    char **list, const char *empty, const char *port_name)
+node_wifi_port_option_list(unsigned int gid, const char *oid,
+    const char *sub_id, char **list, const char *empty, const char *port_name)
 {
     ta_wifi_port *port;
     ta_wifi_option *option;
@@ -578,11 +527,9 @@ node_wifi_port_option_list(unsigned int gid, const char *oid, const char *sub_id
 
 /** Set custom option value */
 static te_errno
-node_wifi_ssid_option_value_set(unsigned int gid, const char *oid, const char *value,
-                      const char *empty,
-                      const char *port_name,
-                      const char *ssid_name,
-                      const char *option_name)
+node_wifi_ssid_option_value_set(unsigned int gid, const char *oid,
+    const char *value, const char *empty, const char *port_name,
+    const char *ssid_name, const char *option_name)
 {
     ta_wifi_port *port;
     ta_wifi_ssid *ssid;
@@ -611,10 +558,8 @@ node_wifi_ssid_option_value_set(unsigned int gid, const char *oid, const char *v
 /** Get custom option value */
 static te_errno
 node_wifi_ssid_option_value_get(unsigned int gid, const char *oid, char *value,
-                      const char *empty,
-                      const char *port_name,
-                      const char *ssid_name,
-                      const char *option_name)
+    const char *empty, const char *port_name, const char *ssid_name,
+    const char *option_name)
 {
     ta_wifi_port *port;
     ta_wifi_ssid *ssid;
@@ -641,9 +586,7 @@ node_wifi_ssid_option_value_get(unsigned int gid, const char *oid, char *value,
 
 static te_errno
 node_wifi_ssid_option_add(unsigned int gid, const char *oid, const char *value,
-    const char *empty,
-    const char *port_name,
-    const char *ssid_name,
+    const char *empty, const char *port_name, const char *ssid_name,
     const char *option_name)
 {
     ta_wifi_port *port;
@@ -675,11 +618,8 @@ node_wifi_ssid_option_add(unsigned int gid, const char *oid, const char *value,
 }
 
 static te_errno
-node_wifi_ssid_option_del(unsigned int gid, const char *oid,
-    const char *empty,
-    const char *port_name,
-    const char *ssid_name,
-    const char *option_name)
+node_wifi_ssid_option_del(unsigned int gid, const char *oid, const char *empty,
+    const char *port_name, const char *ssid_name, const char *option_name)
 {
     ta_wifi_port *port;
     ta_wifi_ssid *ssid;
@@ -706,10 +646,8 @@ node_wifi_ssid_option_del(unsigned int gid, const char *oid,
 }
 
 static te_errno
-node_wifi_ssid_option_list(unsigned int gid, const char *oid, const char *sub_id,
-    char **list,
-    const char *empty,
-    const char *port_name,
+node_wifi_ssid_option_list(unsigned int gid, const char *oid,
+    const char *sub_id, char **list, const char *empty, const char *port_name,
     const char *ssid_name)
 {
     ta_wifi_port *port;
@@ -928,8 +866,8 @@ node_wifi_port_ifname_get(unsigned int gid, const char *oid, char *value,
 }
 
 static te_errno
-node_wifi_port_ifname_set(unsigned int gid, const char *oid,
-    const char *value, const char *empty, const char *port_name)
+node_wifi_port_ifname_set(unsigned int gid, const char *oid, const char *value,
+    const char *empty, const char *port_name)
 {
     ta_wifi_port *port;
 
@@ -1012,8 +950,8 @@ node_wifi_port_width_get(unsigned int gid, const char *oid, char *value,
 }
 
 static te_errno
-node_wifi_port_width_set(unsigned int gid, const char *oid,
-    const char *value, const char *empty, const char *port_name)
+node_wifi_port_width_set(unsigned int gid, const char *oid, const char *value,
+    const char *empty, const char *port_name)
 {
     ta_wifi_port *port;
     int mapped;
@@ -1067,8 +1005,7 @@ port_add(unsigned int gid, const char *oid, const char *value,
 }
 
 static te_errno
-port_del(unsigned int gid, const char *oid,
-    const char *empty, const char *name)
+port_del(unsigned int gid, const char *oid, const char *empty, const char *name)
 {
     ta_wifi_port *port;
 
@@ -1092,8 +1029,7 @@ port_del(unsigned int gid, const char *oid,
 }
 
 static te_errno
-port_list(unsigned int gid, const char *oid,
-    const char *sub_id, char **list)
+port_list(unsigned int gid, const char *oid, const char *sub_id, char **list)
 {
     ta_wifi_port *port;
     te_string str = TE_STRING_INIT;
@@ -1115,7 +1051,8 @@ port_list(unsigned int gid, const char *oid,
 
 RCF_PCH_CFG_NODE_RWC(node_wifi_ssid_option_value, "value",
                      NULL, NULL,
-                     node_wifi_ssid_option_value_get, node_wifi_ssid_option_value_set,
+                     node_wifi_ssid_option_value_get,
+                     node_wifi_ssid_option_value_set,
                      &node_wifi);
 
 RCF_PCH_CFG_NODE_COLLECTION(node_wifi_ssid_option, "option",
@@ -1168,7 +1105,8 @@ RCF_PCH_CFG_NODE_COLLECTION(node_wifi_ssid, "ssid",
 
 RCF_PCH_CFG_NODE_RWC(node_wifi_option_value, "value",
                      NULL, NULL,
-                     node_wifi_port_option_value_get, node_wifi_port_option_value_set,
+                     node_wifi_port_option_value_get,
+                     node_wifi_port_option_value_set,
                      &node_wifi);
 
 RCF_PCH_CFG_NODE_COLLECTION(node_wifi_port_option, "option",

@@ -254,11 +254,14 @@ ta_wifi_uci_apply_port(ta_wifi_cfg_context *ctx, ta_wifi_port *node)
     CHECKED_FPRINTF(ctx->f, "\toption wifi_radio_instance '%d'\n",
         ctx->radio_instance);
     if (node->tx_power != 0)
-        CHECKED_FPRINTF(ctx->f, "\toption txpower '%u'\n", (unsigned)node->tx_power);
+        CHECKED_FPRINTF(ctx->f, "\toption txpower '%u'\n",
+            (unsigned)node->tx_power);
     if (node->frag_threshold != 0)
-        CHECKED_FPRINTF(ctx->f, "\toption frag '%u'\n", (unsigned)node->frag_threshold);
+        CHECKED_FPRINTF(ctx->f, "\toption frag '%u'\n",
+            (unsigned)node->frag_threshold);
     if (node->rts_threshold != 0)
-        CHECKED_FPRINTF(ctx->f, "\toption rts '%u'\n", (unsigned)node->rts_threshold);
+        CHECKED_FPRINTF(ctx->f, "\toption rts '%u'\n",
+            (unsigned)node->rts_threshold);
 
     SLIST_FOREACH(option, &node->options, links)
     {
