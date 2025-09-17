@@ -18,4 +18,5 @@ te_libs += [
     'rpc_types',
     'tools',
     'rcfpch',
+    'ta_wifi_helpers',
 ]
