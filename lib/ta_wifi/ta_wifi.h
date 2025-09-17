@@ -3,7 +3,11 @@
 /** @file
  * @brief WiFi agent library
  *
- * Basic WiFi tree implementation
+ * @defgroup ta_wifi_agent WiFi control library agent side (ta_wifi)
+ * @ingroup ta_wifi
+ * @{
+ *
+ * Agent-side library to use to control WiFi on hosts.
  */
 
 #ifndef __TA_WIFI_H__
@@ -26,3 +30,5 @@ extern te_errno ta_unix_conf_wifi_init(void);
 } /* extern "C" */
 #endif
 #endif /* !__TA_WIFI_H__ */
+
+/**@} <!-- END ta_wifi --> */
