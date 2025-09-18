@@ -242,7 +242,10 @@ ta_wifi_uci_apply_port(ta_wifi_cfg_context *ctx, ta_wifi_port *node)
     CHECKED_FPRINTF(ctx->f, "config wifi-device '%s'\n", node->ifname);
     if (!node->enable)
         CHECKED_FPRINTF(ctx->f, "\toption disabled '1'\n");
-    CHECKED_FPRINTF(ctx->f, "\toption channel '%d'\n", node->channel);
+    if (node->channel == 0)
+        CHECKED_FPRINTF(ctx->f, "\toption channel 'auto'\n");
+    else
+        CHECKED_FPRINTF(ctx->f, "\toption channel '%d'\n", node->channel);
 
     if (node->width != TA_WIFI_WIDTH_NOT_SET)
     {
