@@ -280,6 +280,7 @@ te_vec_tokenize_string(const char *str, te_vec *strvec, char *sep_symbols)
 {
     char       *str_copy;
     char       *part;
+    char       *ptr = NULL;
 
     assert(strvec != NULL);
     assert(strvec->element_size == sizeof(char *));
@@ -291,7 +292,7 @@ te_vec_tokenize_string(const char *str, te_vec *strvec, char *sep_symbols)
         return 0;
 
     str_copy = TE_STRDUP(str);
-    part = strtok(str_copy, sep_symbols);
+    part = strtok_r(str_copy, sep_symbols, &ptr);
     while (part != NULL)
     {
         char *tmp_part;
@@ -299,7 +300,7 @@ te_vec_tokenize_string(const char *str, te_vec *strvec, char *sep_symbols)
         tmp_part = TE_STRDUP(part);
 
         TE_VEC_APPEND(strvec, tmp_part);
-        part = strtok(NULL, sep_symbols);
+        part = strtok_r(NULL, sep_symbols, &ptr);
     }
     free(str_copy);
 
