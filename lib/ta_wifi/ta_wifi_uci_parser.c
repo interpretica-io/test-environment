@@ -165,8 +165,7 @@ ta_wifi_process_tokens(ta_wifi_tmpl_parse_context *ctx,
 
 /* See the description in ta_wifi_uci.h */
 te_errno
-ta_wifi_uci_parser_parse(const char *path,
-    ta_wifi_tmpl_data *data)
+ta_wifi_uci_parser_parse(const char *path, ta_wifi_tmpl_data *data)
 {
     te_errno ret;
     FILE    *f;
@@ -177,7 +176,13 @@ ta_wifi_uci_parser_parse(const char *path,
 
     f = fopen(path, "r");
     if (f == NULL)
-        return TE_OS_RC(TE_TA_UNIX, errno);
+    {
+        int saved_errno = errno;
+
+        ERROR("Failed to open UCI configuration '%s': %s", path,
+            strerror(errno));
+        return TE_OS_RC(TE_TA_UNIX, saved_errno);
+    }
 
     while (fgets(line, sizeof(line), f))
     {
@@ -188,14 +193,14 @@ ta_wifi_uci_parser_parse(const char *path,
 
         line[sizeof(line) - 1] = '\0';
 
-        if (te_vec_tokenize_string(line, &linevec, " \t\r\n") != 0)
+        if (te_vec_tokenize_string(line, &linevec, " \t\r\n'") != 0)
             continue;
 
         if (te_vec_size(&linevec) == 3)
         {
             TE_VEC_FOREACH(&linevec, p)
             {
-                tok[n] = (char *)p;
+                tok[n] = (char *)*p;
                 n++;
                 if (n == 3)
                     break;
@@ -205,6 +210,7 @@ ta_wifi_uci_parser_parse(const char *path,
             if (ret != 0)
                 goto err;
         }
+
         te_vec_deep_free(&linevec);
     }
 
