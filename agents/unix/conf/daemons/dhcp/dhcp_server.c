@@ -42,9 +42,9 @@
  */
 #undef TA_UNIX_ISC_DHCPS_NATIVE_CFG
 
-#define TE_DHCPD_CONF_FILENAME          "/tmp/te.dhcpd.conf"
-#define TE_DHCPD_LEASES_FILENAME        "/tmp/te.dhcpd.leases"
-#define TE_DHCPD6_LEASES_FILENAME       "/tmp/te.dhcpd6.leases"
+#define TE_DHCPD_CONF_FILENAME          "/var/lib/dhcp/te.dhcpd.conf"
+#define TE_DHCPD_LEASES_FILENAME        "/var/lib/dhcp/te.dhcpd.leases"
+#define TE_DHCPD6_LEASES_FILENAME       "/var/lib/dhcp/te.dhcpd6.leases"
 #define TE_DHCPD_PID_FILENAME           "/var/run/dhcpd.pid"
 #define TE_DHCPD6_PID_FILENAME          "/var/run/dhcpd6.pid"
 
