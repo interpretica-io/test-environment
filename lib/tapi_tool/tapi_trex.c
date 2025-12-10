@@ -318,6 +318,10 @@ struct tapi_trex_interface {
      * It can be PCI address, interface name or @p TAPI_TREX_DUMMY.
      */
     char *if_name;
+    /**
+     * Old interface's driver
+     */
+    char *old_driver;
     /** If @c true then interface will be bound. */
     bool need_to_bind;
 };
@@ -610,6 +614,7 @@ tapi_trex_interface_init(const char *name, bool bind)
     }
 
     interface->if_name = strdup(name);
+    interface->old_driver = NULL;
     interface->need_to_bind = bind;
 
     return interface;
@@ -628,13 +633,15 @@ tapi_trex_interface_init(const char *name, bool bind)
 static te_errno
 tapi_trex_bind_pci_addr(const char *ta,
                         const char *pci_addr,
-                        const char *driver)
+                        const char *driver,
+                        const char **old_driver)
 {
     te_errno rc;
     cfg_handle handle;
 
     char *oid = NULL;
     char *pci = NULL;
+    char *old = NULL;
 
     if (driver == NULL)
         return 0;
@@ -644,6 +651,12 @@ tapi_trex_bind_pci_addr(const char *ta,
         ERROR("TA name or PCI address can't be NULL");
         return TE_RC(TE_TAPI, TE_EINVAL);
     }
+
+    rc = cfg_get_instance_string_fmt(&old,
+        "/agent:%s/hardware:/pci:/device:%s/driver:",
+        ta, pci_addr);
+    if (rc != 0)
+        old = NULL;
 
     rc = cfg_find_fmt(&handle, "/agent:%s/hardware:/pci:/device:%s",
                       ta, pci_addr);
@@ -667,8 +680,12 @@ tapi_trex_bind_pci_addr(const char *ta,
         goto cleanup;
     }
 
+    if (old_driver != NULL)
+        *old_driver = strdup(old);
+
 cleanup:
 
+    free(old);
     free(oid);
     free(pci);
 
@@ -965,11 +982,30 @@ tapi_trex_interface_init_oid(bool use_kernel_interface,
 
 /* See description in tapi_trex.h */
 void
+tapi_trex_interface_unbind(const char *ta, tapi_trex_interface *interface)
+{
+    if (interface == NULL)
+        return;
+
+    if (interface->old_driver != NULL)
+    {
+        cfg_set_instance_fmt(CFG_VAL(STRING, interface->old_driver),
+                             "/agent:%s/hardware:/pci:/device:%s/driver:",
+                             ta, interface->if_name);
+        cfg_synchronize("/:", true);
+        sleep(10);
+        cfg_synchronize("/:", true);
+    }
+}
+
+/* See description in tapi_trex.h */
+void
 tapi_trex_interface_free(tapi_trex_interface *interface)
 {
     if (interface == NULL)
         return;
 
+    free(interface->old_driver);
     free(interface->if_name);
     free(interface);
 }
@@ -1065,7 +1101,7 @@ tapi_trex_setup_port(const char *ta,
 
     if (need_to_bind)
     {
-        rc = tapi_trex_bind_pci_addr(ta, iface, driver);
+        rc = tapi_trex_bind_pci_addr(ta, iface, driver, &interface->old_driver);
         if (rc != 0)
         {
             ERROR("Failed to bind '%s' PCI interface on TA '%s': %r",
@@ -1735,7 +1771,7 @@ tapi_trex_kill(const tapi_trex_app *app, int signum)
  * @param nics  TAPI TRex clients.
  */
 static void
-tapi_trex_destroy_clients(tapi_trex_client_config *clients[])
+tapi_trex_destroy_clients(const char *ta, tapi_trex_client_config *clients[])
 {
     size_t clients_n;
 
@@ -1743,7 +1779,10 @@ tapi_trex_destroy_clients(tapi_trex_client_config *clients[])
         return;
 
     for(clients_n = 0; clients[clients_n] != NULL; clients_n++)
+    {
+        tapi_trex_interface_unbind(ta, clients[clients_n]->common.interface);
         tapi_trex_interface_free(clients[clients_n]->common.interface);
+    }
 }
 
 /**
@@ -1752,7 +1791,7 @@ tapi_trex_destroy_clients(tapi_trex_client_config *clients[])
  * @param nics  TAPI TRex servers.
  */
 static void
-tapi_trex_destroy_servers(tapi_trex_server_config *servers[])
+tapi_trex_destroy_servers(const char *ta, tapi_trex_server_config *servers[])
 {
     size_t servers_n;
 
@@ -1760,7 +1799,10 @@ tapi_trex_destroy_servers(tapi_trex_server_config *servers[])
         return;
 
     for(servers_n = 0; servers[servers_n] != NULL; servers_n++)
+    {
+        tapi_trex_interface_unbind(ta, servers[servers_n]->common.interface);
         tapi_trex_interface_free(servers[servers_n]->common.interface);
+    }
 }
 
 /* See description in tapi_trex.h */
@@ -1788,8 +1830,8 @@ tapi_trex_destroy(const char *ta, tapi_trex_app *app, tapi_trex_opt *opt)
     free(app->global_stat_flts);
     free(app);
 
-    tapi_trex_destroy_clients(opt->clients);
-    tapi_trex_destroy_servers(opt->servers);
+    tapi_trex_destroy_clients(ta, opt->clients);
+    tapi_trex_destroy_servers(ta, opt->servers);
 
     return rc;
 }
