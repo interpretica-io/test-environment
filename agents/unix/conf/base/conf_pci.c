@@ -2104,6 +2104,9 @@ pci_driver_set(unsigned int gid, const char *oid, const char *value,
         rc = maybe_create_device(dev, value);
         if (rc != 0)
             return rc;
+
+        /* finally, disable overriding */
+        try_override(dev, "");
     }
     else
     {
