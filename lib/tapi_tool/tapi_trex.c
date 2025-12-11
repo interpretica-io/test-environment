@@ -992,9 +992,6 @@ tapi_trex_interface_unbind(const char *ta, tapi_trex_interface *interface)
         cfg_set_instance_fmt(CFG_VAL(STRING, interface->old_driver),
                              "/agent:%s/hardware:/pci:/device:%s/driver:",
                              ta, interface->if_name);
-        cfg_synchronize("/:", true);
-        sleep(10);
-        cfg_synchronize("/:", true);
     }
 }
 
@@ -1128,6 +1125,8 @@ tapi_trex_gen_yaml_config(const char *ta, const tapi_trex_opt *opt,
 {
     te_errno rc;
     const char *cfg_templ;
+    const char *pci_clt_ta;
+    const char *pci_srv_ta;
 
     te_vec clients = TE_VEC_INIT(const tapi_trex_client_config *);
     te_vec servers = TE_VEC_INIT(const tapi_trex_server_config *);
@@ -1143,6 +1142,15 @@ tapi_trex_gen_yaml_config(const char *ta, const tapi_trex_opt *opt,
     size_t nics_n;
 
     te_kvpair_h kvpairs;
+
+    pci_clt_ta = opt->pci_clt_ta;
+    if (pci_clt_ta == NULL)
+        pci_clt_ta = ta;
+
+    pci_srv_ta = opt->pci_srv_ta;
+    if (pci_srv_ta == NULL)
+        pci_srv_ta = ta;
+
     te_kvpair_init(&kvpairs);
     te_kvpair_push(&kvpairs, "COLON", "%s", ":");
 
@@ -1165,7 +1173,7 @@ tapi_trex_gen_yaml_config(const char *ta, const tapi_trex_opt *opt,
         client = (client != NULL ? client : &tapi_trex_client_config_default);
         server = (server != NULL ? server : &tapi_trex_server_config_default);
 
-        rc = tapi_trex_setup_port(ta, opt->driver,
+        rc = tapi_trex_setup_port(pci_srv_ta, opt->driver,
                                   server->common.interface,
                                   server->common.ip,
                                   server->common.gw,
@@ -1173,7 +1181,7 @@ tapi_trex_gen_yaml_config(const char *ta, const tapi_trex_opt *opt,
         if (rc != 0)
             goto cleanup;
 
-        rc = tapi_trex_setup_port(ta, opt->driver,
+        rc = tapi_trex_setup_port(pci_clt_ta, opt->driver,
                                   client->common.interface,
                                   client->common.ip,
                                   client->common.gw,
@@ -1771,7 +1779,8 @@ tapi_trex_kill(const tapi_trex_app *app, int signum)
  * @param nics  TAPI TRex clients.
  */
 static void
-tapi_trex_destroy_clients(const char *ta, tapi_trex_client_config *clients[])
+tapi_trex_destroy_clients(const char *ta, const char *pci_ta,
+                          tapi_trex_client_config *clients[])
 {
     size_t clients_n;
 
@@ -1780,7 +1789,8 @@ tapi_trex_destroy_clients(const char *ta, tapi_trex_client_config *clients[])
 
     for(clients_n = 0; clients[clients_n] != NULL; clients_n++)
     {
-        tapi_trex_interface_unbind(ta, clients[clients_n]->common.interface);
+        tapi_trex_interface_unbind(pci_ta,
+            clients[clients_n]->common.interface);
         tapi_trex_interface_free(clients[clients_n]->common.interface);
     }
 }
@@ -1791,7 +1801,8 @@ tapi_trex_destroy_clients(const char *ta, tapi_trex_client_config *clients[])
  * @param nics  TAPI TRex servers.
  */
 static void
-tapi_trex_destroy_servers(const char *ta, tapi_trex_server_config *servers[])
+tapi_trex_destroy_servers(const char *ta, const char *pci_ta,
+                          tapi_trex_server_config *servers[])
 {
     size_t servers_n;
 
@@ -1800,7 +1811,8 @@ tapi_trex_destroy_servers(const char *ta, tapi_trex_server_config *servers[])
 
     for(servers_n = 0; servers[servers_n] != NULL; servers_n++)
     {
-        tapi_trex_interface_unbind(ta, servers[servers_n]->common.interface);
+        tapi_trex_interface_unbind(pci_ta,
+                                   servers[servers_n]->common.interface);
         tapi_trex_interface_free(servers[servers_n]->common.interface);
     }
 }
@@ -1811,9 +1823,16 @@ tapi_trex_destroy(const char *ta, tapi_trex_app *app, tapi_trex_opt *opt)
 {
     te_errno rc;
     unsigned int i;
+    const char  *pci_clt_ta = opt->pci_clt_ta;
+    const char  *pci_srv_ta = opt->pci_srv_ta;
 
     if (app == NULL)
         return 0;
+
+    if (pci_clt_ta == NULL)
+        pci_clt_ta = ta;
+    if (pci_srv_ta == NULL)
+        pci_srv_ta = ta;
 
     rc = tapi_job_destroy(app->job, TAPI_TREX_TIMEOUT_MS);
     if (rc != 0)
@@ -1830,8 +1849,8 @@ tapi_trex_destroy(const char *ta, tapi_trex_app *app, tapi_trex_opt *opt)
     free(app->global_stat_flts);
     free(app);
 
-    tapi_trex_destroy_clients(ta, opt->clients);
-    tapi_trex_destroy_servers(ta, opt->servers);
+    tapi_trex_destroy_clients(ta, pci_clt_ta, opt->clients);
+    tapi_trex_destroy_servers(ta, pci_srv_ta, opt->servers);
 
     return rc;
 }

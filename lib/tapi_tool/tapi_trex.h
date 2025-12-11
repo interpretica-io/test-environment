@@ -673,6 +673,14 @@ typedef struct tapi_trex_opt {
      * The directory with TRex exec should also contain @c "astf_schema.json".
     */
     const char *trex_exec;
+    /**
+     * TA for client PCI management
+     */
+    const char *pci_clt_ta;
+    /**
+     * TA for server PCI management
+     */
+    const char *pci_srv_ta;
 } tapi_trex_opt;
 
 /** Default TRex options initializer. */
