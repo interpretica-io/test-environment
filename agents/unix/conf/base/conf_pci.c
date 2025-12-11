@@ -1695,6 +1695,7 @@ bind_pci_device(const pci_device *dev, const char *drvname)
         return rc;
     }
 
+    RING("Bind '%s' to driver '%s'", buf.ptr, drvname);
     if (write(fd, buf.ptr, buf.len) < 0)
     {
         /* For some reason, writing to bind just after
@@ -1985,6 +1986,8 @@ try_override(const pci_device *dev, const char *drv)
         return rc;
     }
 
+    RING("Override '%s' driver with '%s'", id.ptr, drv);
+
     te_string_append(&sys, "/sys/bus/pci/devices/%s/driver_override", id.ptr);
     te_string_free(&id);
 
@@ -2046,6 +2049,7 @@ pci_driver_set(unsigned int gid, const char *oid, const char *value,
 
     if (*driver_name != '\0')
     {
+        RING("Unbind '%s' from driver '%s'", addr_str, driver_name);
         rc = unbind_pci_device(dev);
         if (rc != 0)
             return rc;
