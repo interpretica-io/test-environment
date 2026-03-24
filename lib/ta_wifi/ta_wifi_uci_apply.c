@@ -377,7 +377,10 @@ ta_wifi_uci_apply(ta_wifi *node)
 
     ctx.f = fopen(OPENWRT_CONFIG, "w");
     if (ctx.f == NULL)
-        return TE_OS_RC(TE_TA_UNIX, errno);
+    {
+        ret = TE_OS_RC(TE_TA_UNIX, errno);
+        goto err;
+    }
 
     /* Apply ports */
     SLIST_FOREACH(port, &node->ports, links)
