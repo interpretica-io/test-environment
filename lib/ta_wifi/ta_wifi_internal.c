@@ -45,6 +45,15 @@ ta_wifi_ssid_free(ta_wifi_ssid *ssid)
 {
     if (ssid != NULL)
     {
+        ta_wifi_option *option;
+        ta_wifi_option *option_tmp;
+
+        SLIST_FOREACH_SAFE(option, &ssid->options, links, option_tmp)
+        {
+            SLIST_REMOVE(&ssid->options, option, ta_wifi_option, links);
+            ta_wifi_option_free(option);
+        }
+
         free(ssid->instance_name);
         free(ssid->name);
         free(ssid->ifname);
