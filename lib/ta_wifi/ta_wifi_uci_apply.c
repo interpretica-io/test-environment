@@ -82,7 +82,7 @@ infer_ht_mode(tapi_cfg_wifi_standard std, tapi_cfg_wifi_width width,
             break;
     }
 
-    sprintf(htmode + strlen(htmode), "%d", width);
+    snprintf(htmode + strlen(htmode), HT_MODE_SIZE - strlen(htmode), "%d", width);
 }
 
 /* HW modes */
