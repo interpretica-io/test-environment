@@ -1145,7 +1145,7 @@ node_wifi_port_ ##__name## _set(unsigned int gid, const char *oid,  \
 {                                                                   \
     ta_wifi_port *port;                                             \
     te_errno rc;                                                    \
-    uint16_t val;                                                   \
+    uint32_t val;                                               \
                                                                     \
     UNUSED(gid);                                                    \
     UNUSED(oid);                                                    \
