@@ -240,11 +240,14 @@ ta_wifi_uci_apply_port(ta_wifi_cfg_context *ctx, ta_wifi_port *node)
         TA_WIFI_TMPL_TYPE_DEVICE, node->ifname);
 
     if (tmpl_node != NULL)
-        RING("Found template node for port '%s'", node->ifname);
+        RING("Found template node for port '%s'",
+             node->ifname != NULL ? node->ifname : "");
     else
-        WARN("No template node for port '%s'", node->ifname);
+        WARN("No template node for port '%s'",
+             node->ifname != NULL ? node->ifname : "");
 
-    CHECKED_FPRINTF(ctx->f, "config wifi-device '%s'\n", node->ifname);
+    if (node->ifname != NULL)
+        CHECKED_FPRINTF(ctx->f, "config wifi-device '%s'\n", node->ifname);
     if (!node->enable)
         CHECKED_FPRINTF(ctx->f, "\toption disabled '1'\n");
     if (node->channel == 0)
