@@ -992,6 +992,7 @@ port_add(unsigned int gid, const char *oid, const char *value,
     port->instance_name = TE_STRDUP(name);
     port->standard = TAPI_CFG_WIFI_STANDARD_G;
     SLIST_INIT(&port->ssids);
+    SLIST_INIT(&port->options);
 
     SLIST_INSERT_HEAD(&ta_wifi_get_node()->ports, port, links);
 
