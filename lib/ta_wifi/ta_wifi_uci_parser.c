@@ -141,7 +141,7 @@ ta_wifi_process_tokens(ta_wifi_tmpl_parse_context *ctx,
         {
             /* This is the interface, therefore we need to remember device */
             free(ctx->current_node->device);
-            ctx->current_node->device = strdup(value);
+            ctx->current_node->device = TE_STRDUP(value);
             RING("Template node device updated: '%s'", value);
         }
         else
