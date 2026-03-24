@@ -405,7 +405,6 @@ node_wifi_port_option_value_set(unsigned int gid, const char *oid,
 
     UNUSED(gid);
     UNUSED(oid);
-    UNUSED(value);
     UNUSED(empty);
 
     if ((port = ta_wifi_find_port(port_name)) == NULL)
@@ -432,7 +431,6 @@ node_wifi_port_option_value_get(unsigned int gid, const char *oid, char *value,
 
     UNUSED(gid);
     UNUSED(oid);
-    UNUSED(value);
     UNUSED(empty);
 
     if ((port = ta_wifi_find_port(port_name)) == NULL)
@@ -537,7 +535,6 @@ node_wifi_ssid_option_value_set(unsigned int gid, const char *oid,
 
     UNUSED(gid);
     UNUSED(oid);
-    UNUSED(value);
     UNUSED(empty);
 
     if ((port = ta_wifi_find_port(port_name)) == NULL)
@@ -567,7 +564,6 @@ node_wifi_ssid_option_value_get(unsigned int gid, const char *oid, char *value,
 
     UNUSED(gid);
     UNUSED(oid);
-    UNUSED(value);
     UNUSED(empty);
 
     if ((port = ta_wifi_find_port(port_name)) == NULL)
