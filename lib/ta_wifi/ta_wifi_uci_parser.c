@@ -199,7 +199,10 @@ ta_wifi_uci_parser_parse(const char *path, ta_wifi_tmpl_data *data)
         line[sizeof(line) - 1] = '\0';
 
         if (te_vec_tokenize_string(line, &linevec, " \t\r\n'") != 0)
+        {
+            te_vec_deep_free(&linevec);
             continue;
+        }
 
         if (te_vec_size(&linevec) == 3)
         {
@@ -213,7 +216,10 @@ ta_wifi_uci_parser_parse(const char *path, ta_wifi_tmpl_data *data)
 
             ret = ta_wifi_process_tokens(&ctx, data, tok[0], tok[1], tok[2]);
             if (ret != 0)
+            {
+                te_vec_deep_free(&linevec);
                 goto err;
+            }
         }
 
         te_vec_deep_free(&linevec);
