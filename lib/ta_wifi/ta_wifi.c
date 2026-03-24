@@ -1305,7 +1305,7 @@ ta_unix_conf_wifi_apply(void)
             default:
             {
                 /* not implemented */
-                return TE_ENOSYS;
+                return TE_RC(TE_TA_UNIX, TE_ENOSYS);
             }
         }
     }
@@ -1325,7 +1325,7 @@ ta_unix_conf_wifi_cancel(void)
             return ta_wifi_wh_cancel(ta_wifi_get_node());
         default:
             /* not implemented */
-            return TE_ENOSYS;
+            return TE_RC(TE_TA_UNIX, TE_ENOSYS);
     }
 }
 
