@@ -741,7 +741,8 @@ node_wifi_port_enable_set(unsigned int gid, const char *oid, const char *value,
     const char *empty, const char *port_name)
 {
     ta_wifi_port *port;
-    te_errno rc;
+    te_errno      ret;
+    bool          result;
 
     UNUSED(gid);
     UNUSED(oid);
@@ -753,9 +754,13 @@ node_wifi_port_enable_set(unsigned int gid, const char *oid, const char *value,
     if (port == NULL)
         return TE_RC(TE_TA_UNIX, TE_ENOENT);
 
-    rc = te_strtou_size(value, 0, &port->enable, sizeof(port->enable));
+    ret = te_strtol_bool(value, &result);
+    if (ret != 0)
+        return ret;
 
-    return TE_RC_UPSTREAM(TE_TA_UNIX, rc);
+    port->enable = result;
+
+    return 0;
 }
 
 
