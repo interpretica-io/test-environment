@@ -288,8 +288,8 @@ node_wifi_ssid_enable_get(unsigned int gid, const char *oid, char *value,
     if (ssid == NULL)
         return TE_RC(TE_TA_UNIX, TE_ENOENT);
 
-    sprintf(value, "%d", ssid->enable ? 1 : 0);
-    return 0;
+    return TE_RC_UPSTREAM(TE_TA_UNIX,
+        te_snprintf(value, RCF_MAX_VAL, "%d", ssid->enable ? 1 : 0));
 }
 
 static te_errno
@@ -801,9 +801,8 @@ node_wifi_enable_get(unsigned int gid, const char *oid, char *value,
     UNUSED(oid);
     UNUSED(empty);
 
-    sprintf(value, "%d", ta_wifi_get_node()->enable ? 1 : 0);
-
-    return 0;
+    return TE_RC_UPSTREAM(TE_TA_UNIX,
+        te_snprintf(value, RCF_MAX_VAL, "%d", ta_wifi_get_node()->enable ? 1 : 0));
 }
 
 static te_errno
@@ -834,9 +833,8 @@ node_wifi_status_get(unsigned int gid, const char *oid, char *value,
     UNUSED(oid);
     UNUSED(empty);
 
-    sprintf(value, "%d", ta_wifi_get_node()->status ? 1 : 0);
-
-    return 0;
+    return TE_RC_UPSTREAM(TE_TA_UNIX,
+        te_snprintf(value, RCF_MAX_VAL, "%d", ta_wifi_get_node()->status ? 1 : 0));
 }
 
 static te_errno
