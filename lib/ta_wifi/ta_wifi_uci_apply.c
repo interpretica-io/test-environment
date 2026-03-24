@@ -255,16 +255,16 @@ ta_wifi_uci_apply_port(ta_wifi_cfg_context *ctx, ta_wifi_port *node)
     else
         CHECKED_FPRINTF(ctx->f, "\toption channel '%d'\n", node->channel);
 
-    if (node->width != TAPI_CFG_WIFI_WIDTH_NOT_SET)
-    {
-        infer_ht_mode(node->standard, node->width, htmode);
-        CHECKED_FPRINTF(ctx->f, "\toption htmode '%s'\n", htmode);
-    }
     if ((size_t)node->standard >= TE_ARRAY_LEN(wifi_standard2hwmode))
     {
         ERROR("Unknown WiFi standard: %d", node->standard);
         ret = TE_RC(TE_TA_UNIX, TE_EINVAL);
         goto err;
+    }
+    if (node->width != TAPI_CFG_WIFI_WIDTH_NOT_SET)
+    {
+        infer_ht_mode(node->standard, node->width, htmode);
+        CHECKED_FPRINTF(ctx->f, "\toption htmode '%s'\n", htmode);
     }
     CHECKED_FPRINTF(ctx->f, "\toption hwmode '%s'\n",
         wifi_standard2hwmode[node->standard]);
