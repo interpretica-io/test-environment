@@ -439,7 +439,7 @@ node_wifi_port_option_value_get(unsigned int gid, const char *oid, char *value,
     if ((option = ta_wifi_port_find_option(port, option_name)) == NULL)
         return TE_RC(TE_TA_UNIX, TE_ENOENT);
 
-    strcpy(value, option->value);
+    te_snprintf(value, RCF_MAX_VAL, "%s", option->value);
 
     return 0;
 }
@@ -575,7 +575,7 @@ node_wifi_ssid_option_value_get(unsigned int gid, const char *oid, char *value,
     if ((option = ta_wifi_ssid_find_option(ssid, option_name)) == NULL)
         return TE_RC(TE_TA_UNIX, TE_ENOENT);
 
-    strcpy(value, option->value);
+    te_snprintf(value, RCF_MAX_VAL, "%s", option->value);
 
     return 0;
 }
@@ -853,10 +853,7 @@ node_wifi_port_ifname_get(unsigned int gid, const char *oid, char *value,
     if (port == NULL)
         return TE_RC(TE_TA_UNIX, TE_ENOENT);
 
-    if (port->ifname != NULL)
-        strcpy(value, port->ifname);
-    else
-        strcpy(value, "");
+    te_snprintf(value, RCF_MAX_VAL, "%s", port->ifname != NULL ? port->ifname : "");
 
     return 0;
 }
