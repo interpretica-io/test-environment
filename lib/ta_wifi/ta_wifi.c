@@ -45,9 +45,9 @@ node_wifi_ssid_passphrase_get(unsigned int gid, const char *oid, char *value,
     if (ssid == NULL)
         return TE_RC(TE_TA_UNIX, TE_ENOENT);
 
-    snprintf(value, RCF_MAX_VAL, "%s",
-        ssid->passphrase != NULL ? ssid->passphrase : "");
-    return 0;
+    return TE_RC_UPSTREAM(TE_TA_UNIX,
+        te_snprintf(value, RCF_MAX_VAL, "%s",
+            ssid->passphrase != NULL ? ssid->passphrase : ""));
 }
 
 static te_errno
@@ -212,9 +212,9 @@ node_wifi_ssid_name_get(unsigned int gid, const char *oid, char *value,
     if (ssid == NULL)
         return TE_RC(TE_TA_UNIX, TE_ENOENT);
 
-    snprintf(value, RCF_MAX_VAL, "%s",
-        ssid->name != NULL ? ssid->name : "");
-    return 0;
+    return TE_RC_UPSTREAM(TE_TA_UNIX,
+        te_snprintf(value, RCF_MAX_VAL, "%s",
+            ssid->name != NULL ? ssid->name : ""));
 }
 
 static te_errno
@@ -250,9 +250,9 @@ node_wifi_ssid_ifname_get(unsigned int gid, const char *oid, char *value,
     if (ssid == NULL)
         return TE_RC(TE_TA_UNIX, TE_ENOENT);
 
-    snprintf(value, RCF_MAX_VAL, "%s",
-        ssid->ifname != NULL ? ssid->ifname : "");
-    return 0;
+    return TE_RC_UPSTREAM(TE_TA_UNIX,
+        te_snprintf(value, RCF_MAX_VAL, "%s",
+            ssid->ifname != NULL ? ssid->ifname : ""));
 }
 
 static te_errno
@@ -439,9 +439,8 @@ node_wifi_port_option_value_get(unsigned int gid, const char *oid, char *value,
     if ((option = ta_wifi_port_find_option(port, option_name)) == NULL)
         return TE_RC(TE_TA_UNIX, TE_ENOENT);
 
-    te_snprintf(value, RCF_MAX_VAL, "%s", option->value);
-
-    return 0;
+    return TE_RC_UPSTREAM(TE_TA_UNIX,
+        te_snprintf(value, RCF_MAX_VAL, "%s", option->value));
 }
 
 static te_errno
@@ -575,9 +574,8 @@ node_wifi_ssid_option_value_get(unsigned int gid, const char *oid, char *value,
     if ((option = ta_wifi_ssid_find_option(ssid, option_name)) == NULL)
         return TE_RC(TE_TA_UNIX, TE_ENOENT);
 
-    te_snprintf(value, RCF_MAX_VAL, "%s", option->value);
-
-    return 0;
+    return TE_RC_UPSTREAM(TE_TA_UNIX,
+        te_snprintf(value, RCF_MAX_VAL, "%s", option->value));
 }
 
 static te_errno
@@ -856,9 +854,9 @@ node_wifi_port_ifname_get(unsigned int gid, const char *oid, char *value,
     if (port == NULL)
         return TE_RC(TE_TA_UNIX, TE_ENOENT);
 
-    te_snprintf(value, RCF_MAX_VAL, "%s", port->ifname != NULL ? port->ifname : "");
-
-    return 0;
+    return TE_RC_UPSTREAM(TE_TA_UNIX,
+        te_snprintf(value, RCF_MAX_VAL, "%s",
+            port->ifname != NULL ? port->ifname : ""));
 }
 
 static te_errno
