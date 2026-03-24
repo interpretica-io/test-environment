@@ -52,8 +52,6 @@ typedef struct ta_wifi_cfg_context {
         .tmpl_data = NULL,                  \
     }
 
-extern const te_enum_map wifi_htmode_mapping[];
-
 /* AP modes */
 static const char *wifi_mode2str[] = {
     [TAPI_CFG_WIFI_MODE_AP] = "ap",
