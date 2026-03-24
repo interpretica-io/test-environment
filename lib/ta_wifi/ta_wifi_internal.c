@@ -31,11 +31,11 @@ static ta_wifi wifi_node = {
 void
 ta_wifi_option_free(ta_wifi_option *option)
 {
-    if (option != NULL)
-    {
-        free(option->name);
-        free(option->value);
-    }
+    if (option == NULL)
+        return;
+
+    free(option->name);
+    free(option->value);
     free(option);
 }
 
@@ -43,22 +43,22 @@ ta_wifi_option_free(ta_wifi_option *option)
 void
 ta_wifi_ssid_free(ta_wifi_ssid *ssid)
 {
-    if (ssid != NULL)
+    ta_wifi_option *option;
+    ta_wifi_option *option_tmp;
+
+    if (ssid == NULL)
+        return;
+
+    SLIST_FOREACH_SAFE(option, &ssid->options, links, option_tmp)
     {
-        ta_wifi_option *option;
-        ta_wifi_option *option_tmp;
-
-        SLIST_FOREACH_SAFE(option, &ssid->options, links, option_tmp)
-        {
-            SLIST_REMOVE(&ssid->options, option, ta_wifi_option, links);
-            ta_wifi_option_free(option);
-        }
-
-        free(ssid->instance_name);
-        free(ssid->name);
-        free(ssid->ifname);
-        free(ssid->passphrase);
+        SLIST_REMOVE(&ssid->options, option, ta_wifi_option, links);
+        ta_wifi_option_free(option);
     }
+
+    free(ssid->instance_name);
+    free(ssid->name);
+    free(ssid->ifname);
+    free(ssid->passphrase);
     free(ssid);
 }
 
@@ -66,29 +66,28 @@ ta_wifi_ssid_free(ta_wifi_ssid *ssid)
 void
 ta_wifi_port_free(ta_wifi_port *port)
 {
-    if (port != NULL)
+    ta_wifi_ssid *ssid;
+    ta_wifi_ssid *ssid_tmp;
+    ta_wifi_option *option;
+    ta_wifi_option *option_tmp;
+
+    if (port == NULL)
+        return;
+
+    SLIST_FOREACH_SAFE(ssid, &port->ssids, links, ssid_tmp)
     {
-        ta_wifi_ssid *ssid;
-        ta_wifi_ssid *ssid_tmp;
-        ta_wifi_option *option;
-        ta_wifi_option *option_tmp;
-
-        SLIST_FOREACH_SAFE(ssid, &port->ssids, links, ssid_tmp)
-        {
-            SLIST_REMOVE(&port->ssids, ssid, ta_wifi_ssid, links);
-            ta_wifi_ssid_free(ssid);
-        }
-
-        SLIST_FOREACH_SAFE(option, &port->options, links, option_tmp)
-        {
-            SLIST_REMOVE(&port->options, option, ta_wifi_option, links);
-            ta_wifi_option_free(option);
-        }
-
-        free(port->instance_name);
-        free(port->ifname);
+        SLIST_REMOVE(&port->ssids, ssid, ta_wifi_ssid, links);
+        ta_wifi_ssid_free(ssid);
     }
 
+    SLIST_FOREACH_SAFE(option, &port->options, links, option_tmp)
+    {
+        SLIST_REMOVE(&port->options, option, ta_wifi_option, links);
+        ta_wifi_option_free(option);
+    }
+
+    free(port->instance_name);
+    free(port->ifname);
     free(port);
 }
 
