@@ -135,7 +135,7 @@ extern ta_wifi_option *ta_wifi_port_find_option(const ta_wifi_port *port,
  * @param[in]  port       The port
  * @param[in]  ssid_name  The SSID name
  *
- * @return The found SSID pointer in case of success, @C NULL in case of failure
+ * @return The found SSID pointer in case of success, @c NULL in case of failure
  */
 extern ta_wifi_ssid *ta_wifi_port_find_ssid(const ta_wifi_port *port,
                                             const char *ssid_name);
