@@ -38,6 +38,19 @@ extern te_errno ta_wifi_wh_apply(ta_wifi *node);
  */
 extern te_errno ta_wifi_wh_cancel(ta_wifi *node);
 
+/**
+ * Get live WiFi status by querying wpa_cli/hostapd_cli.
+ *
+ * Returns @c true if all enabled SSIDs are in their expected connected
+ * state (wpa_state=COMPLETED for STA, state=ENABLED for AP).
+ *
+ * @param[in]  node    The WiFi node
+ * @param[out] status  @c true if connected, @c false otherwise
+ *
+ * @return Status code
+ */
+extern te_errno ta_wifi_wh_status_get(ta_wifi *node, bool *status);
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

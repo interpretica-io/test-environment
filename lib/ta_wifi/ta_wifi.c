@@ -30,6 +30,7 @@ static rcf_pch_cfg_object node_wifi;
 
 static te_errno ta_unix_conf_wifi_apply(void);
 static te_errno ta_unix_conf_wifi_cancel(void);
+static tapi_cfg_wifi_configurator infer_configurator(tapi_cfg_wifi_configurator cfg);
 
 static te_errno
 node_wifi_ssid_passphrase_get(unsigned int gid, const char *oid, char *value,
@@ -832,12 +833,30 @@ static te_errno
 node_wifi_status_get(unsigned int gid, const char *oid, char *value,
     const char *empty)
 {
+    bool     status = false;
+    te_errno rc;
+
     UNUSED(gid);
     UNUSED(oid);
     UNUSED(empty);
 
+    if (ta_wifi_get_node()->enable)
+    {
+        switch (infer_configurator(ta_wifi_get_node()->configurator))
+        {
+            case TAPI_CFG_WIFI_CFG_HOSTAPD_WPA_SUPPLICANT:
+                rc = ta_wifi_wh_status_get(ta_wifi_get_node(), &status);
+                if (rc != 0)
+                    return rc;
+                break;
+            default:
+                status = ta_wifi_get_node()->status;
+                break;
+        }
+    }
+
     return TE_RC_UPSTREAM(TE_TA_UNIX,
-        te_snprintf(value, RCF_MAX_VAL, "%d", ta_wifi_get_node()->status ? 1 : 0));
+        te_snprintf(value, RCF_MAX_VAL, "%d", status ? 1 : 0));
 }
 
 static te_errno

@@ -754,6 +754,62 @@ err:
 
 /* See the description in ta_wifi_wh.h */
 te_errno
+ta_wifi_wh_status_get(ta_wifi *node, bool *status)
+{
+    ta_wifi_port *port;
+    ta_wifi_ssid *ssid;
+    char          cmd[CMD_SIZE];
+    te_errno      ret;
+    bool          has_active = false;
+
+    assert(node != NULL);
+    assert(status != NULL);
+
+    *status = false;
+
+    SLIST_FOREACH(port, &node->ports, links)
+    {
+        if (!port->enable || port->ifname == NULL)
+            continue;
+
+        SLIST_FOREACH(ssid, &port->ssids, links)
+        {
+            if (!ssid->enable)
+                continue;
+
+            if (ssid->mode == TAPI_CFG_WIFI_MODE_STA)
+            {
+                has_active = true;
+                ret = te_snprintf(cmd, sizeof(cmd),
+                    "wpa_cli -i %s status 2>/dev/null | "
+                    "grep -q 'wpa_state=COMPLETED'",
+                    port->ifname);
+                if (ret != 0)
+                    return ret;
+                if (ta_system(cmd) != 0)
+                    return 0;
+            }
+            else if (ssid->mode == TAPI_CFG_WIFI_MODE_AP)
+            {
+                has_active = true;
+                ret = te_snprintf(cmd, sizeof(cmd),
+                    "hostapd_cli -i %s status 2>/dev/null | "
+                    "grep -q 'state=ENABLED'",
+                    port->ifname);
+                if (ret != 0)
+                    return ret;
+                if (ta_system(cmd) != 0)
+                    return 0;
+            }
+        }
+    }
+
+    *status = has_active;
+    return 0;
+}
+
+/* See the description in ta_wifi_wh.h */
+te_errno
 ta_wifi_wh_apply(ta_wifi *node)
 {
     te_errno             ret;
