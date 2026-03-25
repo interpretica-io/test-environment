@@ -57,7 +57,7 @@ typedef struct ta_wifi_wh_context {
 
 /* WPA supplicant/hostapd context initializer */
 #define TA_WH_CONTEXT_INIT() { \
-    NULL, NULL \
+    NULL, 0, NULL \
 }
 
 /* fprintf that would propagate error to TE */
