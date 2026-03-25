@@ -83,7 +83,7 @@ typedef struct ta_wifi_wh_context {
 static int
 wifi_channel_to_freq(tapi_cfg_wifi_standard standard, unsigned ch)
 {
-    if (ch <= 0)
+    if (ch == 0)
         return -1;
 
     switch (standard)
