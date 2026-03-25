@@ -849,6 +849,11 @@ node_wifi_status_get(unsigned int gid, const char *oid, char *value,
                 if (rc != 0)
                     return rc;
                 break;
+            case TAPI_CFG_WIFI_CFG_UCI:
+                rc = ta_wifi_uci_status_get(ta_wifi_get_node(), &status);
+                if (rc != 0)
+                    return rc;
+                break;
             default:
                 status = ta_wifi_get_node()->status;
                 break;

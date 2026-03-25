@@ -125,6 +125,19 @@ extern te_errno ta_wifi_uci_apply(ta_wifi *node);
  */
 extern te_errno ta_wifi_uci_cancel(ta_wifi *node);
 
+/**
+ * Get live WiFi status by querying ubus.
+ *
+ * Returns @c true if all enabled ports report @c up=true
+ * in @c ubus call network.wireless status output.
+ *
+ * @param[in]  node    The WiFi node
+ * @param[out] status  @c true if up, @c false otherwise
+ *
+ * @return Status code
+ */
+extern te_errno ta_wifi_uci_status_get(ta_wifi *node, bool *status);
+
 /* Parsing functions */
 
 /**

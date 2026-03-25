@@ -19,6 +19,8 @@
 #include <unistd.h>
 #endif
 
+/** Size of command buffer in bytes */
+#define UCI_CMD_SIZE    (300)
 
 /** UCI wireless configuration */
 #define OPENWRT_CONFIG "/etc/config/wireless"
@@ -428,6 +430,42 @@ err:
         fclose(ctx.f);
 
     return ret;
+}
+
+/* See the description in ta_wifi_uci.h */
+te_errno
+ta_wifi_uci_status_get(ta_wifi *node, bool *status)
+{
+    ta_wifi_port *port;
+    char          cmd[UCI_CMD_SIZE];
+    te_errno      ret;
+    bool          has_active = false;
+
+    assert(node != NULL);
+    assert(status != NULL);
+
+    *status = false;
+
+    SLIST_FOREACH(port, &node->ports, links)
+    {
+        if (!port->enable || port->ifname == NULL)
+            continue;
+
+        has_active = true;
+
+        ret = te_snprintf(cmd, sizeof(cmd),
+            "ubus call network.wireless status 2>/dev/null | "
+            "jsonfilter -e '@[\"%s\"].up' | grep -q true",
+            port->ifname);
+        if (ret != 0)
+            return ret;
+
+        if (ta_system(cmd) != 0)
+            return 0;
+    }
+
+    *status = has_active;
+    return 0;
 }
 
 /* See the description in ta_wifi_uci.h */
