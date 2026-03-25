@@ -291,7 +291,6 @@ ta_wifi_wh_apply_ha_ssid(ta_wifi_wh_context *ctx, ta_wifi_ssid *ssid)
 {
     te_errno      ret;
     ta_wifi_port *port;
-    int           freq;
 
     assert(ctx != NULL);
     assert(ctx->port != NULL);
