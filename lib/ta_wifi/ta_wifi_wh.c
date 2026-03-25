@@ -657,7 +657,7 @@ ta_wifi_wh_apply_port(ta_wifi_wh_context *ctx, ta_wifi_port *port)
 
         /* Run a new hostapd instance */
         ret = te_snprintf(cmd, sizeof(cmd),
-            "%s -P %s %s",
+            "%s -B -P %s %s",
             HOSTAPD_PATH, pid_file, conf_file);
         if (ret != 0)
             goto err;
