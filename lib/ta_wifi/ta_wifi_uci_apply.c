@@ -377,13 +377,15 @@ ta_wifi_uci_apply(ta_wifi *node)
     assert(node != NULL);
 
     ta_wifi_tmpl_data_init(&tmpl_data);
-    ret = ta_wifi_uci_parser_parse(OPENWRT_CONFIG,
-        &tmpl_data);
+    ret = ta_wifi_uci_parser_parse(OPENWRT_CONFIG, &tmpl_data);
     if (ret != 0)
     {
         ERROR("Failed to parse UCI configuration");
         goto err;
     }
+
+    /* Bring WiFi down after capturing the old config as template */
+    ta_wifi_uci_cancel(node);
 
     ctx.tmpl_data = &tmpl_data;
 

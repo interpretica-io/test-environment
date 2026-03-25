@@ -108,7 +108,7 @@ extern ta_wifi_tmpl_node *ta_wifi_tmpl_data_get_tmpl_by_device(
 /* Apply functions */
 
 /**
- * Apply WiFi configuration to UCI
+ * Apply WiFi configuration to UCI.
  *
  * @param node  The WiFi node
  *

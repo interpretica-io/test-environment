@@ -1302,10 +1302,6 @@ ta_unix_conf_wifi_apply(void)
 {
     te_errno rc;
 
-    rc = ta_unix_conf_wifi_cancel();
-    if (rc != 0)
-        return rc;
-
     if (ta_wifi_get_node()->enable)
     {
         switch (infer_configurator(ta_wifi_get_node()->configurator))
