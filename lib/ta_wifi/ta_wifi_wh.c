@@ -435,6 +435,49 @@ try_kill_pid(const char *pid_path)
     return 0;
 }
 
+/*
+ * Check that a daemon started successfully by waiting for its PID file
+ * to appear and verifying the process is alive.
+ */
+static te_errno
+check_daemon_started(const char *pid_file)
+{
+    FILE *f;
+    int   pid;
+    int   attempt;
+
+    /* Wait for the PID file to appear */
+    for (attempt = 0; attempt < TA_WH_KILL_ATTEMPTS; attempt++)
+    {
+        f = fopen(pid_file, "r");
+        if (f != NULL)
+            break;
+        usleep(TA_WH_KILL_WAIT_USEC);
+    }
+
+    if (f == NULL)
+    {
+        ERROR("Daemon PID file '%s' did not appear after startup", pid_file);
+        return TE_RC(TE_TA_UNIX, TE_ETIMEDOUT);
+    }
+
+    if (fscanf(f, "%d", &pid) != 1)
+    {
+        fclose(f);
+        return TE_RC(TE_TA_UNIX, TE_EIO);
+    }
+    fclose(f);
+
+    /* Check that the process is still alive */
+    if (kill(pid, 0) != 0)
+    {
+        ERROR("Daemon with PID %d is not running after startup", pid);
+        return TE_RC(TE_TA_UNIX, TE_EFAIL);
+    }
+
+    return 0;
+}
+
 /* Apply port's configuration and run necessary wpa_supplicant or hostapd */
 static te_errno
 ta_wifi_wh_apply_port(ta_wifi_wh_context *ctx, ta_wifi_port *port)
@@ -537,6 +580,13 @@ ta_wifi_wh_apply_port(ta_wifi_wh_context *ctx, ta_wifi_port *port)
         {
             ERROR("Failed to start WPA Supplicant");
             ret = TE_RC(TE_TA_UNIX, TE_ESHCMD);
+            goto err;
+        }
+
+        ret = check_daemon_started(pid_file);
+        if (ret != 0)
+        {
+            ERROR("WPA Supplicant failed to initialize on '%s'", port->ifname);
             goto err;
         }
     }
@@ -683,6 +733,13 @@ ta_wifi_wh_apply_port(ta_wifi_wh_context *ctx, ta_wifi_port *port)
         {
             ERROR("Failed to start hostapd");
             ret = TE_RC(TE_TA_UNIX, TE_ESHCMD);
+            goto err;
+        }
+
+        ret = check_daemon_started(pid_file);
+        if (ret != 0)
+        {
+            ERROR("hostapd failed to initialize on '%s'", port->ifname);
             goto err;
         }
     }
