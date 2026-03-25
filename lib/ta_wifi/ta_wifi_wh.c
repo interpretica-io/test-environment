@@ -179,7 +179,7 @@ ta_wifi_wh_apply_wpas_ssid(ta_wifi_wh_context *ctx, ta_wifi_ssid *ssid)
             {
                 ERROR("Invalid specification of protocol: TKIP can't be used "
                       "with WPA3");
-                ret = -1;
+                ret = TE_RC(TE_TA_UNIX, TE_EINVAL);
                 goto err;
             }
 
@@ -383,7 +383,7 @@ try_kill_pid(const char *pid_path)
 {
     FILE *f;
     int   pid;
-    int   ret;
+    te_errno ret;
 
     assert(pid_path != NULL);
 
@@ -718,7 +718,7 @@ err:
 te_errno
 ta_wifi_wh_cancel(ta_wifi *node)
 {
-    int  ret;
+    te_errno ret;
     char pid_file[FILE_PATH_SIZE];
     ta_wifi_port *port;
 
