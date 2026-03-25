@@ -47,6 +47,11 @@
 #define FILE_PATH_SIZE  (200)
 #define CMD_SIZE        (500)
 
+/** Number of attempts to wait for a process to die after SIGTERM */
+#define TA_WH_KILL_ATTEMPTS     100
+/** Time to wait between checks, in microseconds */
+#define TA_WH_KILL_WAIT_USEC    50000
+
 /** WPA supplicant/hostapd configuration generation context */
 typedef struct ta_wifi_wh_context {
     FILE         *f;    /**< File where to put the context data */
@@ -404,13 +409,25 @@ try_kill_pid(const char *pid_path)
     fclose(f);
 
     kill_ret = kill(pid, SIGTERM);
-    if (kill_ret != 0)
+    if (kill_ret == 0)
     {
-        kill_ret = kill(pid, SIGKILL);
-        if (kill_ret != 0)
+        int attempt;
+
+        /* Wait for the process to die */
+        for (attempt = 0; attempt < TA_WH_KILL_ATTEMPTS; attempt++)
         {
-            return TE_OS_RC(TE_TA_UNIX, errno);
+            if (kill(pid, 0) != 0)
+                break;
+            usleep(TA_WH_KILL_WAIT_USEC);
         }
+
+        /* Still alive after timeout - force kill */
+        if (kill(pid, 0) == 0)
+            kill(pid, SIGKILL);
+    }
+    else if (errno != ESRCH)
+    {
+        return TE_OS_RC(TE_TA_UNIX, errno);
     }
 
     unlink(pid_path);
