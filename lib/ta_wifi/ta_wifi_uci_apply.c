@@ -367,8 +367,6 @@ ta_wifi_uci_apply_other(ta_wifi_cfg_context *ctx)
         }
     }
 
-    ret = 0;
-
 err:
     return ret;
 }
