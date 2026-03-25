@@ -13,20 +13,12 @@
 #include "ta_wifi_uci.h"
 #include "logger_api.h"
 #include "agentlib.h"
-#include "te_enum.h"
 #include "te_str.h"
 
 #if HAVE_UNISTD_H
 #include <unistd.h>
 #endif
 
-#if defined(HAVE_SYS_STAT_H)
-#include <sys/stat.h>
-#endif
-
-#if HAVE_FCNTL_H
-#include <fcntl.h>
-#endif
 
 /** UCI wireless configuration */
 #define OPENWRT_CONFIG "/etc/config/wireless"
