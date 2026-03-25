@@ -385,7 +385,7 @@ try_kill_pid(const char *pid_path)
 {
     FILE *f;
     int   pid;
-    te_errno ret;
+    int   kill_ret;
 
     assert(pid_path != NULL);
 
@@ -404,11 +404,11 @@ try_kill_pid(const char *pid_path)
 
     fclose(f);
 
-    ret = kill(pid, SIGTERM);
-    if (ret != 0)
+    kill_ret = kill(pid, SIGTERM);
+    if (kill_ret != 0)
     {
-        ret = kill(pid, SIGKILL);
-        if (ret != 0)
+        kill_ret = kill(pid, SIGKILL);
+        if (kill_ret != 0)
         {
             return TE_OS_RC(TE_TA_UNIX, errno);
         }
