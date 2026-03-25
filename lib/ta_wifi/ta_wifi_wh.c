@@ -10,7 +10,6 @@
 
 #include "ta_wifi.h"
 #include "ta_wifi_internal.h"
-#include "ta_wifi_uci.h"
 #include "te_str.h"
 #include "logger_api.h"
 #include "agentlib.h"
