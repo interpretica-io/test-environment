@@ -144,21 +144,24 @@ ta_wifi_wh_apply_wpas_ssid(ta_wifi_wh_context *ctx, ta_wifi_ssid *ssid)
              port->standard == TAPI_CFG_WIFI_STANDARD_BE)
     {
         CHECKED_FPRINTF(ctx->f, "key_mgmt=SAE\n");
-        CHECKED_FPRINTF(ctx->f, "sae_password=\"%s\"\n", ssid->passphrase);
+        if (!te_str_is_null_or_empty(ssid->passphrase))
+            CHECKED_FPRINTF(ctx->f, "sae_password=\"%s\"\n", ssid->passphrase);
         CHECKED_FPRINTF(ctx->f, "ieee80211w=2\n");
         CHECKED_FPRINTF(ctx->f, "proto=RSN\n");
     }
     else if (ssid->security == TAPI_CFG_WIFI_SECURITY_WEP)
     {
         CHECKED_FPRINTF(ctx->f, "key_mgmt=NONE\n");
-        CHECKED_FPRINTF(ctx->f, "wep_key0=\"%s\"\n", ssid->passphrase);
+        if (!te_str_is_null_or_empty(ssid->passphrase))
+            CHECKED_FPRINTF(ctx->f, "wep_key0=\"%s\"\n", ssid->passphrase);
         CHECKED_FPRINTF(ctx->f, "wep_tx_keyidx=0\n");
     }
     else
     {
         /* PSK variants */
         CHECKED_FPRINTF(ctx->f, "key_mgmt=WPA-PSK\n");
-        CHECKED_FPRINTF(ctx->f, "psk=\"%s\"\n", ssid->passphrase);
+        if (!te_str_is_null_or_empty(ssid->passphrase))
+            CHECKED_FPRINTF(ctx->f, "psk=\"%s\"\n", ssid->passphrase);
         if (ssid->security == TAPI_CFG_WIFI_SECURITY_WPA)
         {
             CHECKED_FPRINTF(ctx->f, "proto=WPA\n");
