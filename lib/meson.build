@@ -183,7 +183,12 @@ foreach l : all_libs
             build_lib_shared = false
             build_lib_static = true
         else
-            # External libraries are agent side only now
+            # Defaults for external libraries: static agent-side.
+            # An external library (e.g. one declared with TE_EXT_REPO)
+            # may override build_lib_shared / build_lib_static /
+            # install_lib / link_whole in its own meson.build, e.g. to
+            # provide an engine-side TAPI or to be linked wholly into
+            # agents for constructor-based registration.
             build_lib_shared = false
             build_lib_static = true
         endif

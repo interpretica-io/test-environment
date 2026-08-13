@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+#
+# Test Environment Builder
+#
+# Convert an external libraries catalog (YAML) into shell declarations
+# consumed by the Builder (see TE_EXT_REPO_USE in builder.m4 and
+# te_fetch_ext_repos).
+#
+# Catalog format:
+#
+#     repositories:
+#       - name: tsf_wifi
+#         url: https://example.com/tsf-wifi.git
+#         ref: v1.0.0
+#         libs:
+#           - tapi_cfg_wifi
+#           - ta_wifi
+#
+# 'libs' may be omitted: then the repository root is treated as a
+# single library named after the repository.
+#
+# PyYAML is used when available; otherwise a built-in parser for the
+# exact subset above is used.
+#
+# Usage: te_ext_libs_yml <catalog.yml> [...]
+
+import re
+import shlex
+import sys
+
+NAME_RE = re.compile(r'^[A-Za-z][A-Za-z0-9_]*$')
+KNOWN_KEYS = {'name', 'url', 'ref', 'libs'}
+
+
+def error(msg):
+    sys.stderr.write('ERROR: %s\n' % msg)
+    sys.exit(1)
+
+
+def parse_fallback(path):
+    """Parse the documented catalog subset without PyYAML."""
+    repos = []
+    repo = None
+    in_libs = False
+
+    with open(path) as f:
+        for lineno, raw in enumerate(f, 1):
+            line = raw.split('#', 1)[0].rstrip()
+            if not line.strip():
+                continue
+            loc = '%s:%d' % (path, lineno)
+            stripped = line.strip()
+            indent = len(line) - len(line.lstrip())
+
+            if indent == 0:
+                if stripped == 'repositories:':
+                    continue
+                error('%s: unexpected top-level entry %r (only '
+                      '"repositories:" is supported; install PyYAML for '
+                      'full YAML support)' % (loc, stripped))
+
+            if stripped.startswith('- ') or stripped == '-':
+                item = stripped[1:].strip()
+                if in_libs and ':' not in item:
+                    repo['libs'].append(unquote(item))
+                    continue
+                # New repository entry
+                in_libs = False
+                repo = {}
+                repos.append(repo)
+                if item:
+                    key, value = split_kv(item, loc)
+                    repo[key] = value
+                continue
+
+            if repo is None:
+                error('%s: mapping entry outside of a repository item'
+                      % loc)
+
+            key, value = split_kv(stripped, loc)
+            if key == 'libs':
+                if value:
+                    error('%s: "libs" must be a list' % loc)
+                repo['libs'] = []
+                in_libs = True
+            else:
+                in_libs = False
+                repo[key] = value
+
+    return {'repositories': repos}
+
+
+def split_kv(s, loc):
+    if ':' not in s:
+        error('%s: expected "key: value", got %r' % (loc, s))
+    key, _, value = s.partition(':')
+    return key.strip(), unquote(value.strip())
+
+
+def unquote(s):
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in ('"', "'"):
+        return s[1:-1]
+    return s
+
+
+def load(path):
+    try:
+        import yaml
+    except ImportError:
+        return parse_fallback(path)
+    with open(path) as f:
+        try:
+            return yaml.safe_load(f)
+        except yaml.YAMLError as e:
+            error('%s: %s' % (path, e))
+
+
+def process(path):
+    doc = load(path)
+    if not isinstance(doc, dict) or 'repositories' not in doc:
+        error('%s: catalog must be a mapping with a "repositories" list'
+              % path)
+    unknown = set(doc) - {'repositories'}
+    if unknown:
+        error('%s: unknown top-level keys: %s'
+              % (path, ', '.join(sorted(unknown))))
+    repos = doc['repositories']
+    if not isinstance(repos, list):
+        error('%s: "repositories" must be a list' % path)
+
+    for repo in repos:
+        if not isinstance(repo, dict):
+            error('%s: each repository must be a mapping' % path)
+        unknown = set(repo) - KNOWN_KEYS
+        if unknown:
+            error('%s: unknown repository keys: %s'
+                  % (path, ', '.join(sorted(unknown))))
+
+        name = repo.get('name')
+        url = repo.get('url')
+        ref = repo.get('ref')
+        libs = repo.get('libs', [])
+
+        if not name or not isinstance(name, str) or not NAME_RE.match(name):
+            error('%s: bad repository name %r' % (path, name))
+        if not url or not isinstance(url, str):
+            error('%s: repository %s: "url" is mandatory' % (path, name))
+        if not ref or not isinstance(ref, str):
+            error('%s: repository %s: "ref" is mandatory' % (path, name))
+        if not isinstance(libs, list):
+            error('%s: repository %s: "libs" must be a list' % (path, name))
+        for lib in libs:
+            if not isinstance(lib, str) or not NAME_RE.match(lib):
+                error('%s: repository %s: bad library name %r'
+                      % (path, name, lib))
+
+        url_var = 'TE_BS_EXT_REPO_%s_URL' % name
+        # Consistency guard against another catalog or TE_EXT_REPO
+        # declaring the same repository differently. The generated
+        # code is sourced inside a dummy loop, so 'break' reports
+        # a configuration error (same pattern as builder.m4 macros).
+        print('if test -n "${%s}" && test "${%s}" != %s ; then'
+              % (url_var, url_var, shlex.quote(url)))
+        print('    TE_BS_CONF_ERR=%s ;'
+              % shlex.quote('external repo %s is already declared '
+                            'with a different URL' % name))
+        print('    break ;')
+        print('fi')
+        print('%s=%s' % (url_var, shlex.quote(url)))
+        print('TE_BS_EXT_REPO_%s_REF=%s' % (name, shlex.quote(ref)))
+        print('TE_BS_EXT_REPO_%s_LIBS=%s'
+              % (name, shlex.quote(' '.join(libs))))
+
+
+def main():
+    if len(sys.argv) < 2:
+        error('Usage: %s <catalog.yml> [...]' % sys.argv[0])
+    for path in sys.argv[1:]:
+        process(path)
+
+
+if __name__ == '__main__':
+    main()

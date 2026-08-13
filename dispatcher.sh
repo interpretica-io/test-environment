@@ -296,6 +296,10 @@ Generic options:
     configuration file or name of the file in the configuration directory.
 
   --conf-builder=<filename>     Builder config file (${CONF_BUILDER_DFLT} by default).
+  --ext-libs=<filename>         External libraries catalog (YAML) declaring
+                                git repositories with TE libraries; repos are
+                                bound to platforms in the Builder config file
+                                with TE_EXT_REPO_USE. May be repeated.
   --conf-cs=<filename>          Configurator config file (${CONF_CS_DFLT} by default).
   --conf-logger=<filename>      Logger config file (${CONF_LOGGER_DFLT} by default).
   --conf-rcf=<filename>         RCF config file (${CONF_RCF_DFLT} by default).
@@ -725,6 +729,8 @@ process_opts()
                 CONF_DIRS="${CONF_DIRS}${CONF_DIRS:+:}${1#--conf-dirs=}" ;;
 
             --conf-builder=*) CONF_BUILDER_SET=1; CONF_BUILDER="${1#--conf-builder=}" ;;
+            --ext-libs=*)
+                EXT_LIBS_YML="${EXT_LIBS_YML}${EXT_LIBS_YML:+ }${1#--ext-libs=}" ;;
             --conf-logger=*) CONF_LOGGER_SET=1; CONF_LOGGER="${1#--conf-logger=}" ;;
             --conf-tester=*) CONF_TESTER_SET=1; CONF_TESTER="${1#--conf-tester=}" ;;
             --conf-cs=*) CONF_CS_SET=1; CONF_CS="${CONF_CS}${CONF_CS:+ }${1#--conf-cs=}" ;;
@@ -1102,6 +1108,21 @@ for i in BUILDER LOGGER TESTER CS RCF RGT NUT ; do
     done
     eval CONF_$i=\$CONF_FILES_POST
 done
+
+# Resolve external libraries catalogs (--ext-libs) against
+# configuration directories and export for the Builder
+if test -n "${EXT_LIBS_YML}" ; then
+    TE_EXT_LIBS_YML=
+    for ext_libs_file in ${EXT_LIBS_YML} ; do
+        ext_libs_path="$(resolve_conf_file_path "${ext_libs_file}")"
+        if test -z "${ext_libs_path}" -o ! -f "${ext_libs_path}" ; then
+            echo "Cannot find external libraries catalog ${ext_libs_file}" >&2
+            exit 1
+        fi
+        TE_EXT_LIBS_YML="${TE_EXT_LIBS_YML}${TE_EXT_LIBS_YML:+ }${ext_libs_path}"
+    done
+    export TE_EXT_LIBS_YML
+fi
 
 # Create directory for temporary files
 if test -z "$TE_TMP" ; then

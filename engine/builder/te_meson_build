@@ -799,6 +799,14 @@ process_builder_conf() {
     # Defaults
     echo TE_BS_APPS=\"builder rcf logger tester configurator\"
 
+    # External libraries catalogs (dispatcher.sh --ext-libs): emit
+    # repository declarations before the builder conf so that
+    # TE_EXT_REPO_USE can bind the libraries to platforms
+    if test -n "${TE_EXT_LIBS_YML}" ; then
+        "${SCRIPT_DIR}/te_ext_libs_yml" ${TE_EXT_LIBS_YML} ||
+            error "Failed to process external libraries catalog"
+    fi
+
     if test -n "${config}" ; then
         if test ! -e "${config}" ; then
             error "Cannot find ${config}"
@@ -1003,6 +1011,13 @@ build_all () {
         echo $TE_BS_CONF_ERR >&2
         exit 1
     fi
+
+    # Fetch external repositories declared with TE_EXT_REPO before
+    # platform processing: their sources are referenced as external
+    # library sources and copied to build workspaces.
+    test -z "${TE_BS_EXT_REPOS}" ||
+        ${SCRIPT_DIR}/te_fetch_ext_repos builder.conf.processed ||
+        error "Failed to fetch external repositories"
 
     process_platforms
 

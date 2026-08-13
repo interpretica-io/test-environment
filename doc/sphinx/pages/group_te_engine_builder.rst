@@ -177,6 +177,111 @@ Please note that we do not specify value for source directory parameter, which m
 
 
 
+.. _doxid-group__te__engine__builder_1te_engine_builder_conf_file_te_ext_repo:
+
+TE_EXT_REPO
++++++++++++
+
+.. ref-code-block:: none
+
+	TE_EXT_REPO([repository name],
+	            [platform name],
+	            [git URL],
+	            [git reference],
+	            [list of libraries])
+
+TE_EXT_REPO directive declares an external git repository that provides TE libraries (TAPI, agent-side configuration subtrees, RPC implementations) which are developed and versioned outside of the TE source tree.
+
+Before platforms are built, the Builder clones the repository into ${TE_BUILD}/ext-repos/[repository name] and checks out the requested reference (tag, commit hash or branch name) with a detached HEAD. Tag and commit references are resolved offline once fetched, so re-builds do not touch the network; branch references follow the branch tip and are re-fetched on every build (set TE_EXT_REPOS_OFFLINE=yes in the environment to suppress fetching). Pin a tag or a commit hash for reproducible builds.
+
+Each declared library is a subdirectory of the repository (if the list is empty, the repository root itself is treated as a single library named after the repository). The libraries are appended to the platform library list and their sources are copied into the platform build workspace, so they are built exactly as if they were subdirectories of ${TE_BASE}/lib. A library must therefore contain a meson.build following the contract of ${TE_BASE}/lib/meson.build subdirectories: append its files to 'sources' and 'headers', list TE dependencies in 'te_libs', etc.
+
+By default an external library is built as a static agent-side library. The library may override this in its meson.build:
+
+* 'build_lib_shared = true' / 'build_lib_static = false' together with 'install_lib = install_dev' turn it into an engine-side shared library (e.g. a TAPI used by test suites);
+
+* 'link_whole = true' makes agents link the library wholly, which is required for constructor-based registration (see below).
+
+For example, a repository with a TAPI library and an agent library:
+
+.. ref-code-block:: none
+
+	TE_EXT_REPO([wifi], [], [https://example.com/te-wifi.git], [v1.2.0],
+	            [tapi_cfg_wifi ta_wifi])
+	TE_EXT_REPO([wifi], [linux64], [https://example.com/te-wifi.git], [v1.2.0],
+	            [ta_wifi])
+
+An agent-side library registers its configuration subtree without any modification of the Test Agent sources, using the registry provided by rcfpch (the library must set 'link_whole = true'):
+
+.. ref-code-block:: none
+
+	#include "rcf_pch_conf_ext.h"
+
+	static te_errno
+	my_conf_init(void)
+	{
+	    return rcf_pch_add_node("/agent", &node_my_subtree);
+	}
+
+	TE_RCF_PCH_CONF_EXT(my_conf_init);
+
+Additional RPC definitions shipped in the repository can be added with the usual TE_LIB_PARMS directive for rpcxdr; reference them relative to ${TE_BASE}/lib/rpcxdr so that the path stays valid inside build workspaces (external library sources are copied to lib/[library name] there):
+
+.. ref-code-block:: none
+
+	TE_LIB_PARMS([rpcxdr], [linux64], [],
+	             [--with-rpcdefs=../ta_wifi/wifi_rpc.x.m4])
+
+
+
+
+
+.. _doxid-group__te__engine__builder_1te_engine_builder_conf_file_te_ext_repo_use:
+
+TE_EXT_REPO_USE
++++++++++++++++
+
+.. ref-code-block:: none
+
+	TE_EXT_REPO_USE([repository name],
+	                [platform name],
+	                [list of libraries])
+
+TE_EXT_REPO_USE binds libraries of an external repository declared in an external libraries catalog to a platform. Unlike TE_EXT_REPO, the git URL and reference are not given in the Builder configuration file - they are taken from the catalog, so a test suite only chooses which libraries go to which platforms while versions are managed in one place.
+
+The catalog is a YAML file passed to dispatcher.sh with the --ext-libs option (the option may be repeated; relative paths are resolved against configuration directories):
+
+.. ref-code-block:: none
+
+	./dispatcher.sh --ext-libs=ext-libs.yml ...
+
+Catalog format:
+
+.. ref-code-block:: none
+
+	repositories:
+	  - name: tsf_wifi
+	    url: https://example.com/tsf-wifi.git
+	    ref: v1.2.0
+	    libs:
+	      - tapi_cfg_wifi
+	      - ta_wifi
+
+'libs' lists the libraries the repository provides; it may be omitted, then the repository root is treated as a single library named after the repository. The catalog is parsed with PyYAML when it is available, otherwise a built-in parser supporting exactly the format above is used.
+
+With the catalog above, a Builder configuration file may contain:
+
+.. ref-code-block:: none
+
+	TE_EXT_REPO_USE([tsf_wifi], [], [tapi_cfg_wifi])
+	TE_EXT_REPO_USE([tsf_wifi], [linux64], [])
+
+An empty list of libraries means "all libraries provided by the repository". Requesting a library the repository does not provide, or using a repository absent from the catalog, is a configuration error. Only repositories actually used by some platform are fetched.
+
+
+
+
+
 .. _doxid-group__te__engine__builder_1te_engine_builder_conf_file_te_ta_type:
 
 TE_TA_TYPE

@@ -1,0 +1,98 @@
+#!/bin/bash
+# SPDX-License-Identifier: Apache-2.0
+#
+# Test Environment Builder
+#
+# Fetch external git repositories declared with TE_EXT_REPO in
+# builder configuration file.
+#
+# Each repository is cloned into ${TE_BUILD}/ext-repos/<name> and
+# the requested reference (tag, commit hash or branch) is checked
+# out with a detached HEAD. If the checkout directory already
+# contains the requested tag or commit, the network is not touched,
+# so re-runs with pinned refs are cheap and offline-friendly.
+# Branch references are re-fetched on every run to follow the
+# branch tip; set TE_EXT_REPOS_OFFLINE=yes to skip fetching and
+# use whatever is already available locally.
+#
+# Usage: te_fetch_ext_repos <processed builder conf>
+
+set -e
+
+error() {
+    echo "ERROR: $*" >&2
+    exit 1
+}
+
+conf="$1"
+test -n "${conf}" -a -r "${conf}" ||
+    error "Usage: $(basename "$0") <processed builder conf>"
+
+test -n "${TE_BUILD}" || error "TE_BUILD is not set"
+
+# Dummy loop: TE_BS_* macros use 'break' to report configuration errors
+while test 1 ; do
+    . "${conf}"
+    break
+done
+test -z "${TE_BS_CONF_ERR}" || error "${TE_BS_CONF_ERR}"
+
+# Resolve a ref to a commit in the repository at $1.
+# Prefers the remote branch tip over a stale local one.
+resolve_ref() {
+    local dir="$1"; shift
+    local ref="$1"; shift
+
+    git -C "${dir}" rev-parse --quiet --verify "origin/${ref}^{commit}" ||
+        git -C "${dir}" rev-parse --quiet --verify "${ref}^{commit}"
+}
+
+fetch_repo() {
+    local name="$1"; shift
+    local url_var="TE_BS_EXT_REPO_${name}_URL"
+    local ref_var="TE_BS_EXT_REPO_${name}_REF"
+    local url="${!url_var}"
+    local ref="${!ref_var}"
+    local dir="${TE_BUILD}/ext-repos/${name}"
+    local commit=
+
+    test -n "${url}" || error "External repo ${name}: URL is empty"
+    test -n "${ref}" || error "External repo ${name}: ref is empty"
+
+    if test ! -d "${dir}/.git" ; then
+        echo "External repo ${name}: cloning ${url}"
+        git clone --no-checkout "${url}" "${dir}" ||
+            error "External repo ${name}: failed to clone ${url}"
+    fi
+
+    commit="$(resolve_ref "${dir}" "${ref}")" || commit=
+
+    # A ref matching a remote branch must follow the branch tip,
+    # so it is re-fetched even if it is already resolvable
+    if git -C "${dir}" rev-parse --quiet --verify \
+           "refs/remotes/origin/${ref}" >/dev/null ; then
+        test "${TE_EXT_REPOS_OFFLINE}" = yes || commit=
+    fi
+
+    if test -z "${commit}" ; then
+        echo "External repo ${name}: fetching ${url}"
+        git -C "${dir}" fetch --tags origin ||
+            error "External repo ${name}: failed to fetch ${url}"
+        commit="$(resolve_ref "${dir}" "${ref}")" ||
+            error "External repo ${name}: cannot resolve ref '${ref}'"
+    fi
+
+    if test "$(git -C "${dir}" rev-parse HEAD 2>/dev/null)" != "${commit}" ||
+       ! git -C "${dir}" diff --quiet HEAD 2>/dev/null ; then
+        git -C "${dir}" checkout --force --detach "${commit}" ||
+            error "External repo ${name}: failed to check out '${ref}'"
+    fi
+
+    echo "External repo ${name}: using ${ref} (${commit})"
+}
+
+for repo in ${TE_BS_EXT_REPOS} ; do
+    fetch_repo "${repo}"
+done
+
+exit 0
