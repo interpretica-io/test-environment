@@ -494,6 +494,25 @@ process_agent_proxy() {
     }
 }
 
+# Process an agent of an external type (declared via an external
+# repository): pass its directory, TA name, platform and extra
+# libraries to meson as an agent-ext-info entry.
+process_agent_ext() {
+    local ta="$1"; shift
+    local pfx="$1"; shift
+    local ta_dir="$1"; shift
+    local libs_var="${pfx}LIBS"
+    local ta_platform="${pfx}PLATFORM"
+
+    local info="${ta_dir}:${ta}:${!ta_platform}"
+    local extra_libs="${!libs_var}"
+
+    info="${info}:${extra_libs// /+}"
+    eval ${libs_var}=
+
+    agent_ext_info="${agent_ext_info}${agent_ext_info:+,}${info}"
+}
+
 process_agent() {
     local p="$1"; shift
     local ta="$1"; shift
@@ -511,6 +530,11 @@ process_agent() {
         unix)   process_agent_unix "${ta}" "${pfx}" ;;
         powerctl|power-ctl) process_agent_powerctl "${ta}" "${pfx}" ;;
         proxy) process_agent_proxy "${ta}" "${pfx}" ;;
+        *)
+            local ext_src_var="TE_BS_EXT_AGENT_${ta_src}_SOURCES"
+            test -z "${!ext_src_var}" ||
+                process_agent_ext "${ta}" "${pfx}" "${ta_src}"
+            ;;
     esac
 
     process_parameters "${pfx}" "${msg}"
@@ -665,10 +689,14 @@ process_platform() {
         meson_args="${meson_args} -Dtad-protocols=\"${tad_protocols}\""
 
     local build_agents=
+    local agent_ext_info=
     for ta in ${TE_BS_TA} ; do
         local platform="TE_BS_TA_${ta}_PLATFORM"
         test "${!platform}" != "${p}" || process_agent "${p}" "${ta}"
     done
+
+    test -z "${agent_ext_info}" ||
+        meson_args="${meson_args} -Dagent-ext-info=\"${agent_ext_info}\""
 
     test -z "${use_sniffers}" ||
         meson_args="${meson_args} -Dsniffers=\"${use_sniffers}\""

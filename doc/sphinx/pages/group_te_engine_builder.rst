@@ -188,7 +188,8 @@ TE_EXT_REPO
 	            [platform name],
 	            [git URL],
 	            [git reference],
-	            [list of libraries])
+	            [list of libraries],
+	            [list of agent types])
 
 TE_EXT_REPO directive declares an external git repository that provides TE libraries (TAPI, agent-side configuration subtrees, RPC implementations) which are developed and versioned outside of the TE source tree.
 
@@ -210,6 +211,37 @@ For example, a repository with a TAPI library and an agent library:
 	            [tapi_cfg_wifi ta_wifi])
 	TE_EXT_REPO([wifi], [linux64], [https://example.com/te-wifi.git], [v1.2.0],
 	            [ta_wifi])
+
+A repository may also provide whole agent types (directories with a standalone meson.build, like the subdirectories of ${TE_BASE}/agents). List them in the sixth parameter (or in the 'agents' key of the catalog, see TE_EXT_REPO_USE) and reference the directory name in the sources parameter of TE_TA_TYPE:
+
+.. ref-code-block:: none
+
+	TE_EXT_REPO([my_agents], [p64], [https://example.com/te-agents.git],
+	            [v2.0], [], [riscv_agent])
+	TE_TA_TYPE([riscv64], [p64], [riscv_agent], [], [], [], [], [tools])
+
+The Builder passes the agent directory, the TA name, the platform and the extra libraries (the eighth TE_TA_TYPE parameter) to meson in the 'agent-ext-info' array option, one '<agent-dir>:<ta-name>:<platform>:<lib>+<lib>' entry per agent. The agent's meson.build finds its own entry and builds itself, for example:
+
+.. ref-code-block:: none
+
+	ext_name = ''
+	ext_libs = []
+	foreach info : get_option('agent-ext-info')
+	    f = info.split(':')
+	    if f[0] == 'riscv_agent'
+	        ext_name = f[1]
+	        if f.length() > 3 and f[3] != ''
+	            ext_libs = f[3].split('+')
+	        endif
+	    endif
+	endforeach
+	ext_deps = []
+	foreach l : ext_libs
+	    ext_deps += [ get_variable('dep_lib_static_' + l) ]
+	endforeach
+	executable('ta', files('main.c'), install: true,
+	           install_dir: join_paths(get_option('agentsdir'), ext_name),
+	           dependencies: ext_deps)
 
 An agent-side library registers its configuration subtree without any modification of the Test Agent sources, using the registry provided by rcfpch (the library must set 'link_whole = true'):
 
@@ -266,8 +298,13 @@ Catalog format:
 	    libs:
 	      - tapi_cfg_wifi
 	      - ta_wifi
+	  - name: my_agents
+	    url: https://example.com/te-agents.git
+	    ref: v2.0
+	    agents:
+	      - riscv_agent
 
-'libs' lists the libraries the repository provides; it may be omitted, then the repository root is treated as a single library named after the repository. The catalog is parsed with PyYAML when it is available, otherwise a built-in parser supporting exactly the format above is used.
+'libs' lists the libraries the repository provides; it may be omitted, then the repository root is treated as a single library named after the repository (unless 'agents' is given). 'agents' lists agent type directories; they become available to TE_TA_TYPE when the repository is used (see TE_EXT_REPO for the agent meson.build contract). The catalog is parsed with PyYAML when it is available, otherwise a built-in parser supporting exactly the format above is used.
 
 With the catalog above, a Builder configuration file may contain:
 

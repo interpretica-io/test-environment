@@ -16,9 +16,13 @@
 #         libs:
 #           - tapi_cfg_wifi
 #           - ta_wifi
+#         agents:
+#           - my_agent
 #
 # 'libs' may be omitted: then the repository root is treated as a
-# single library named after the repository.
+# single library named after the repository. 'agents' lists agent
+# type directories (may be omitted); reference them in the sources
+# parameter of TE_TA_TYPE.
 #
 # PyYAML is used when available; otherwise a built-in parser for the
 # exact subset above is used.
@@ -30,7 +34,8 @@ import shlex
 import sys
 
 NAME_RE = re.compile(r'^[A-Za-z][A-Za-z0-9_]*$')
-KNOWN_KEYS = {'name', 'url', 'ref', 'libs'}
+KNOWN_KEYS = {'name', 'url', 'ref', 'libs', 'agents'}
+LIST_KEYS = {'libs', 'agents'}
 
 
 def error(msg):
@@ -42,7 +47,7 @@ def parse_fallback(path):
     """Parse the documented catalog subset without PyYAML."""
     repos = []
     repo = None
-    in_libs = False
+    cur_list = None
 
     with open(path) as f:
         for lineno, raw in enumerate(f, 1):
@@ -62,11 +67,11 @@ def parse_fallback(path):
 
             if stripped.startswith('- ') or stripped == '-':
                 item = stripped[1:].strip()
-                if in_libs and ':' not in item:
-                    repo['libs'].append(unquote(item))
+                if cur_list is not None and ':' not in item:
+                    repo[cur_list].append(unquote(item))
                     continue
                 # New repository entry
-                in_libs = False
+                cur_list = None
                 repo = {}
                 repos.append(repo)
                 if item:
@@ -79,13 +84,13 @@ def parse_fallback(path):
                       % loc)
 
             key, value = split_kv(stripped, loc)
-            if key == 'libs':
+            if key in LIST_KEYS:
                 if value:
-                    error('%s: "libs" must be a list' % loc)
-                repo['libs'] = []
-                in_libs = True
+                    error('%s: "%s" must be a list' % (loc, key))
+                repo[key] = []
+                cur_list = key
             else:
-                in_libs = False
+                cur_list = None
                 repo[key] = value
 
     return {'repositories': repos}
@@ -141,6 +146,7 @@ def process(path):
         url = repo.get('url')
         ref = repo.get('ref')
         libs = repo.get('libs', [])
+        agents = repo.get('agents', [])
 
         if not name or not isinstance(name, str) or not NAME_RE.match(name):
             error('%s: bad repository name %r' % (path, name))
@@ -154,6 +160,12 @@ def process(path):
             if not isinstance(lib, str) or not NAME_RE.match(lib):
                 error('%s: repository %s: bad library name %r'
                       % (path, name, lib))
+        if not isinstance(agents, list):
+            error('%s: repository %s: "agents" must be a list' % (path, name))
+        for agent in agents:
+            if not isinstance(agent, str) or not NAME_RE.match(agent):
+                error('%s: repository %s: bad agent type name %r'
+                      % (path, name, agent))
 
         url_var = 'TE_BS_EXT_REPO_%s_URL' % name
         # Consistency guard against another catalog or TE_EXT_REPO
@@ -171,6 +183,8 @@ def process(path):
         print('TE_BS_EXT_REPO_%s_REF=%s' % (name, shlex.quote(ref)))
         print('TE_BS_EXT_REPO_%s_LIBS=%s'
               % (name, shlex.quote(' '.join(libs))))
+        print('TE_BS_EXT_REPO_%s_AGENTS=%s'
+              % (name, shlex.quote(' '.join(agents))))
 
 
 def main():
