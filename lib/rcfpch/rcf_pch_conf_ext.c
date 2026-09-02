@@ -5,14 +5,14 @@
  * Registry of configuration tree extensions provided by external
  * libraries linked into a Test Agent.
  *
- * Copyright (C) 2025 Interpretica, Unipessoal Lda. All rights reserved.
+ * Copyright (C) 2026 OKTET Ltd.
  */
 
-#define TE_LGR_USER     "Conf Ext"
+#define TE_LGR_USER     "RCF PCH CONF EXT"
 
 #include "te_config.h"
 
-#include <stdlib.h>
+#include <assert.h>
 
 #include "te_errno.h"
 #include "te_queue.h"
@@ -20,61 +20,36 @@
 
 #include "rcf_pch_conf_ext.h"
 
-/** Registered extension. */
-typedef struct conf_ext {
-    SLIST_ENTRY(conf_ext) links;    /**< List links */
-    const char *name;               /**< Extension name */
-    rcf_pch_conf_ext_init_fn fn;    /**< Initializer */
-} conf_ext;
-
 /*
  * Registrations come from constructor functions before main(),
  * i.e. strictly single-threaded, so no locking is needed.
  */
-static SLIST_HEAD(, conf_ext) conf_exts = SLIST_HEAD_INITIALIZER(conf_exts);
+static TAILQ_HEAD(, rcf_pch_conf_ext) conf_exts =
+    TAILQ_HEAD_INITIALIZER(conf_exts);
 
 /* See description in rcf_pch_conf_ext.h */
-te_errno
-rcf_pch_conf_ext_register(const char *name, rcf_pch_conf_ext_init_fn fn)
+void
+rcf_pch_conf_ext_register(rcf_pch_conf_ext *ext)
 {
-    conf_ext *ext;
-    conf_ext *last = NULL;
+    assert(ext != NULL);
+    assert(ext->name != NULL);
+    assert(ext->init != NULL);
 
-    if (name == NULL || fn == NULL)
-        return TE_RC(TE_RCF_PCH, TE_EINVAL);
-
-    ext = calloc(1, sizeof(*ext));
-    if (ext == NULL)
-        return TE_RC(TE_RCF_PCH, TE_ENOMEM);
-
-    ext->name = name;
-    ext->fn = fn;
-
-    /* Keep registration order: initialize in the order of linking */
-    SLIST_FOREACH(last, &conf_exts, links)
-    {
-        if (SLIST_NEXT(last, links) == NULL)
-            break;
-    }
-    if (last == NULL)
-        SLIST_INSERT_HEAD(&conf_exts, ext, links);
-    else
-        SLIST_INSERT_AFTER(last, ext, links);
-
-    return 0;
+    TAILQ_INSERT_TAIL(&conf_exts, ext, links);
 }
 
 /* See description in rcf_pch_conf_ext.h */
 te_errno
 rcf_pch_conf_ext_init_all(void)
 {
-    const conf_ext *ext;
-    te_errno rc;
+    rcf_pch_conf_ext *ext;
 
-    SLIST_FOREACH(ext, &conf_exts, links)
+    TAILQ_FOREACH(ext, &conf_exts, links)
     {
+        te_errno rc;
+
         RING("Initializing configuration extension '%s'", ext->name);
-        rc = ext->fn();
+        rc = ext->init();
         if (rc != 0)
         {
             ERROR("Configuration extension '%s' failed to initialize: %r",

@@ -23,13 +23,21 @@
  * 'link_whole = true' in its meson.build), otherwise the linker
  * may drop the object file with the constructor.
  *
- * Copyright (C) 2025 Interpretica, Unipessoal Lda. All rights reserved.
+ * @note The order in which the initializers are called is
+ *       unspecified: it follows the order in which the constructors
+ *       run, which depends on the linker and on the way the
+ *       libraries are linked. Extensions must not depend on each
+ *       other or on being initialized first or last. All built-in
+ *       subtrees are set up before any extension is initialized.
+ *
+ * Copyright (C) 2026 OKTET Ltd.
  */
 
 #ifndef __TE_RCF_PCH_CONF_EXT_H__
 #define __TE_RCF_PCH_CONF_EXT_H__
 
 #include "te_errno.h"
+#include "te_queue.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,20 +47,32 @@ extern "C" {
 typedef te_errno (*rcf_pch_conf_ext_init_fn)(void);
 
 /**
- * Register a configuration tree extension initializer.
+ * Registration entry of a configuration tree extension.
+ *
+ * It is defined by TE_RCF_PCH_CONF_EXT() as a static object with
+ * the lifetime of the program, so that registration never needs to
+ * allocate and thus cannot fail. It is not meant to be filled in or
+ * inspected directly.
+ */
+typedef struct rcf_pch_conf_ext {
+    TAILQ_ENTRY(rcf_pch_conf_ext) links; /**< List links */
+    const char *name;                    /**< Extension name */
+    rcf_pch_conf_ext_init_fn init;       /**< Initializer */
+} rcf_pch_conf_ext;
+
+/**
+ * Register a configuration tree extension.
  *
  * Normally called from a constructor function before the agent
  * enters main(), see TE_RCF_PCH_CONF_EXT(). The initializer itself
  * is called by the agent from its configuration initialization
  * (after built-in subtrees are set up).
  *
- * @param name  Human-readable extension name (used in logs).
- * @param fn    Initializer to call.
- *
- * @return Status code.
+ * @param ext   Registration entry with a static lifetime; it is
+ *              linked into the registry as is, so it must not be
+ *              a local or a freed object.
  */
-extern te_errno rcf_pch_conf_ext_register(const char *name,
-                                          rcf_pch_conf_ext_init_fn fn);
+extern void rcf_pch_conf_ext_register(rcf_pch_conf_ext *ext);
 
 /**
  * Call all registered extension initializers.
@@ -69,10 +89,15 @@ extern te_errno rcf_pch_conf_ext_init_all(void);
  * initializer at program startup.
  */
 #define TE_RCF_PCH_CONF_EXT(fn_)                                    \
+    static rcf_pch_conf_ext te_rcf_pch_conf_ext_##fn_ = {           \
+        .name = #fn_,                                               \
+        .init = fn_,                                                \
+    };                                                              \
+                                                                    \
     static __attribute__((constructor)) void                        \
     te_rcf_pch_conf_ext_ctor_##fn_(void)                            \
     {                                                               \
-        (void)rcf_pch_conf_ext_register(#fn_, fn_);                 \
+        rcf_pch_conf_ext_register(&te_rcf_pch_conf_ext_##fn_);      \
     }
 
 #ifdef __cplusplus
