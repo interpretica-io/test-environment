@@ -494,6 +494,20 @@ process_agent_proxy() {
     }
 }
 
+# Check that a value may be carried by an agent-ext-info entry:
+# ',' separates the entries, ':' the fields and '+' the libraries.
+check_agent_ext_field() {
+    local ta="$1"; shift
+    local what="$1"; shift
+    local value="$1"; shift
+
+    case "${value}" in
+        *[:,+]*)
+            error "Agent ${ta}: ${what} '${value}' contains a character" \
+                  "reserved by agent-ext-info (':', ',' or '+')" ;;
+    esac
+}
+
 # Process an agent of an external type (declared via an external
 # repository): pass its directory, TA name, platform and extra
 # libraries to meson as an agent-ext-info entry.
@@ -503,11 +517,28 @@ process_agent_ext() {
     local ta_dir="$1"; shift
     local libs_var="${pfx}LIBS"
     local ta_platform="${pfx}PLATFORM"
+    local extra_libs=
+    local l
 
-    local info="${ta_dir}:${ta}:${!ta_platform}"
-    local extra_libs="${!libs_var}"
+    check_agent_ext_field "${ta}" "agent directory" "${ta_dir}"
+    check_agent_ext_field "${ta}" "TA name" "${ta}"
+    check_agent_ext_field "${ta}" "platform" "${!ta_platform}"
 
-    info="${info}:${extra_libs// /+}"
+    # Word splitting normalizes the whitespace of the libraries list:
+    # it may contain tabs, newlines or repeated spaces, and a plain
+    # substitution of ' ' by '+' would turn those into empty library
+    # names on the meson side
+    for l in ${!libs_var} ; do
+        check_agent_ext_field "${ta}" "library name" "${l}"
+        if test -z "${extra_libs}" ; then
+            extra_libs="${l}"
+        else
+            extra_libs="${extra_libs}+${l}"
+        fi
+    done
+
+    local info="${ta_dir}:${ta}:${!ta_platform}:${extra_libs}"
+
     eval ${libs_var}=
 
     agent_ext_info="${agent_ext_info}${agent_ext_info:+,}${info}"

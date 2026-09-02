@@ -300,6 +300,11 @@ Generic options:
                                 git repositories with TE libraries; repos are
                                 bound to platforms in the Builder config file
                                 with TE_EXT_REPO_USE. May be repeated.
+  --update-ext-libs             Re-resolve the references of external
+                                repositories and move them to the current
+                                commits. Without it a repository stays at the
+                                commit it was pinned to when it was first
+                                resolved, so builds do not change on their own.
   --conf-cs=<filename>          Configurator config file (${CONF_CS_DFLT} by default).
   --conf-logger=<filename>      Logger config file (${CONF_LOGGER_DFLT} by default).
   --conf-rcf=<filename>         RCF config file (${CONF_RCF_DFLT} by default).
@@ -731,6 +736,7 @@ process_opts()
             --conf-builder=*) CONF_BUILDER_SET=1; CONF_BUILDER="${1#--conf-builder=}" ;;
             --ext-libs=*)
                 EXT_LIBS_YML="${EXT_LIBS_YML}${EXT_LIBS_YML:+ }${1#--ext-libs=}" ;;
+            --update-ext-libs) export TE_EXT_REPOS_UPDATE=yes ;;
             --conf-logger=*) CONF_LOGGER_SET=1; CONF_LOGGER="${1#--conf-logger=}" ;;
             --conf-tester=*) CONF_TESTER_SET=1; CONF_TESTER="${1#--conf-tester=}" ;;
             --conf-cs=*) CONF_CS_SET=1; CONF_CS="${CONF_CS}${CONF_CS:+ }${1#--conf-cs=}" ;;

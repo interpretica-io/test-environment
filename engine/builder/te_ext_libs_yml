@@ -36,11 +36,23 @@ import sys
 NAME_RE = re.compile(r'^[A-Za-z][A-Za-z0-9_]*$')
 KNOWN_KEYS = {'name', 'url', 'ref', 'libs', 'agents'}
 LIST_KEYS = {'libs', 'agents'}
+# In YAML a '#' starts a comment only at the beginning of a line or
+# after a space; elsewhere it is an ordinary character, e.g. in
+# 'url: https://example.com/x.git#frag'
+COMMENT_RE = re.compile(r'(?:^|\s)#')
 
 
 def error(msg):
     sys.stderr.write('ERROR: %s\n' % msg)
     sys.exit(1)
+
+
+def strip_comment(raw):
+    """Cut a trailing comment off a line the way YAML does."""
+    match = COMMENT_RE.search(raw)
+    if match:
+        raw = raw[:match.start()]
+    return raw.rstrip()
 
 
 def parse_fallback(path):
@@ -51,7 +63,7 @@ def parse_fallback(path):
 
     with open(path) as f:
         for lineno, raw in enumerate(f, 1):
-            line = raw.split('#', 1)[0].rstrip()
+            line = strip_comment(raw)
             if not line.strip():
                 continue
             loc = '%s:%d' % (path, lineno)
@@ -167,24 +179,33 @@ def process(path):
                 error('%s: repository %s: bad agent type name %r'
                       % (path, name, agent))
 
-        url_var = 'TE_BS_EXT_REPO_%s_URL' % name
-        # Consistency guard against another catalog or TE_EXT_REPO
-        # declaring the same repository differently. The generated
-        # code is sourced inside a dummy loop, so 'break' reports
-        # a configuration error (same pattern as builder.m4 macros).
-        print('if test -n "${%s}" && test "${%s}" != %s ; then'
-              % (url_var, url_var, shlex.quote(url)))
-        print('    TE_BS_CONF_ERR=%s ;'
-              % shlex.quote('external repo %s is already declared '
-                            'with a different URL' % name))
-        print('    break ;')
-        print('fi')
-        print('%s=%s' % (url_var, shlex.quote(url)))
-        print('TE_BS_EXT_REPO_%s_REF=%s' % (name, shlex.quote(ref)))
-        print('TE_BS_EXT_REPO_%s_LIBS=%s'
-              % (name, shlex.quote(' '.join(libs))))
-        print('TE_BS_EXT_REPO_%s_AGENTS=%s'
-              % (name, shlex.quote(' '.join(agents))))
+        # Consistency guards against another catalog declaring the
+        # same repository differently. Every part of the declaration
+        # is compared, not just the URL: otherwise the winner among
+        # conflicting refs or library lists would depend on the order
+        # of --ext-libs options. The generated code is sourced inside
+        # a dummy loop, so 'break' reports a configuration error
+        # (same pattern as builder.m4 macros).
+        emit_var(name, 'URL', 'URL', url)
+        emit_var(name, 'REF', 'ref', ref)
+        emit_var(name, 'LIBS', 'list of libraries', ' '.join(libs))
+        emit_var(name, 'AGENTS', 'list of agent types', ' '.join(agents))
+
+
+def emit_var(name, suffix, what, value):
+    """Emit a guarded assignment of one part of a repository declaration."""
+    var = 'TE_BS_EXT_REPO_%s_%s' % (name, suffix)
+
+    # ${var+set} rather than -n: an empty list is a declaration too,
+    # and conflicts with a non-empty one
+    print('if test -n "${%s+set}" && test "${%s}" != %s ; then'
+          % (var, var, shlex.quote(value)))
+    print('    TE_BS_CONF_ERR=%s ;'
+          % shlex.quote('external repo %s is already declared with '
+                        'a different %s' % (name, what)))
+    print('    break ;')
+    print('fi')
+    print('%s=%s' % (var, shlex.quote(value)))
 
 
 def main():

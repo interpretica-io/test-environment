@@ -8,12 +8,37 @@
 #
 # Each repository is cloned into ${TE_BUILD}/ext-repos/<name> and
 # the requested reference (tag, commit hash or branch) is checked
-# out with a detached HEAD. If the checkout directory already
-# contains the requested tag or commit, the network is not touched,
-# so re-runs with pinned refs are cheap and offline-friendly.
-# Branch references are re-fetched on every run to follow the
-# branch tip; set TE_EXT_REPOS_OFFLINE=yes to skip fetching and
-# use whatever is already available locally.
+# out with a detached HEAD.
+#
+# A build never silently moves to a newer commit. The first time a
+# reference is resolved, the resulting commit is written to
+# ${TE_BUILD}/ext-repos/<name>.pin and every later build uses that
+# commit, whatever the reference points at upstream by then; the
+# network is not touched at all. This holds for branch names too:
+# a branch is resolved once and then stays put, so a build changes
+# only when something in the configuration changes.
+#
+# Moving to a newer commit is an explicit action: run dispatcher.sh
+# with --update-ext-libs (TE_EXT_REPOS_UPDATE=yes in the
+# environment), which re-resolves the references and rewrites the
+# pins, reporting what moved and where. Changing the URL or the
+# reference in the configuration also drops the pin, since that is
+# a request for a different commit.
+#
+# The checkout directory survives rebuilds, so the declared URL is
+# compared with the origin of the existing clone: if the repository
+# has moved, the origin is updated and the new one is re-fetched
+# instead of silently building the code of the old one.
+#
+# Local modifications in the checkout directory are never discarded
+# silently: while the requested commit is already checked out they
+# are kept (so that an external library can be debugged in place),
+# and moving to another commit over them is an error unless
+# TE_EXT_REPOS_FORCE=yes is set.
+#
+# Set TE_EXT_REPOS_OFFLINE=yes to forbid network access: everything
+# that is already available locally is used as is, and anything that
+# would require cloning or fetching is reported as an error.
 #
 # Usage: te_fetch_ext_repos <processed builder conf>
 
@@ -22,6 +47,10 @@ set -e
 error() {
     echo "ERROR: $*" >&2
     exit 1
+}
+
+warn() {
+    echo "WARNING: $*" >&2
 }
 
 conf="$1"
@@ -47,6 +76,63 @@ resolve_ref() {
         git -C "${dir}" rev-parse --quiet --verify "${ref}^{commit}"
 }
 
+# Whether the working tree at $1 has been materialized at all.
+# A clone made with --no-checkout has an empty index and an empty
+# working tree, which is indistinguishable from a wholesale deletion
+# and still needs a checkout even if HEAD already points to the
+# requested commit.
+repo_is_checked_out() {
+    local dir="$1"; shift
+
+    test -n "$(git -C "${dir}" ls-files | head -n 1)"
+}
+
+# Whether the working tree at $1 carries changes that a checkout
+# would destroy. Both tracked modifications and untracked files
+# count: they are the same thing from the point of view of somebody
+# who edited the sources in place.
+repo_is_dirty() {
+    local dir="$1"; shift
+
+    repo_is_checked_out "${dir}" || return 1
+
+    git -C "${dir}" diff --quiet HEAD 2>/dev/null || return 0
+    test -z "$(git -C "${dir}" ls-files --others --exclude-standard |
+                   head -n 1)" || return 0
+
+    return 1
+}
+
+# Whether the commit $2 is present in the repository at $1.
+has_commit() {
+    git -C "$1" cat-file -e "$2^{commit}" 2>/dev/null
+}
+
+# Read the pin file $1 into pin_url, pin_ref and pin_commit.
+# Leaves them empty if there is no readable pin.
+read_pin() {
+    local file="$1"; shift
+
+    pin_url=
+    pin_ref=
+    pin_commit=
+
+    test -r "${file}" || return 0
+
+    {
+        read -r pin_url
+        read -r pin_ref
+        read -r pin_commit
+    } <"${file}" || true
+}
+
+write_pin() {
+    local file="$1"; shift
+
+    printf '%s\n%s\n%s\n' "$1" "$2" "$3" >"${file}" ||
+        error "Failed to write ${file}"
+}
+
 fetch_repo() {
     local name="$1"; shift
     local url_var="TE_BS_EXT_REPO_${name}_URL"
@@ -54,36 +140,132 @@ fetch_repo() {
     local url="${!url_var}"
     local ref="${!ref_var}"
     local dir="${TE_BUILD}/ext-repos/${name}"
+    local pin_file="${dir}.pin"
+    local offline=
+    local update=
     local commit=
+    local origin=
+    local head=
+    local pin_url=
+    local pin_ref=
+    local pin_commit=
 
     test -n "${url}" || error "External repo ${name}: URL is empty"
     test -n "${ref}" || error "External repo ${name}: ref is empty"
 
+    test "${TE_EXT_REPOS_OFFLINE}" != yes || offline=yes
+    test "${TE_EXT_REPOS_UPDATE}" != yes || update=yes
+
+    test -z "${offline}" -o -z "${update}" ||
+        error "External repo ${name}: --update-ext-libs cannot be combined" \
+              "with TE_EXT_REPOS_OFFLINE=yes"
+
+    read_pin "${pin_file}"
+
+    # A pin belongs to the declaration it was made for: changing the
+    # URL or the ref in the configuration is an explicit request for
+    # a different commit and invalidates it
+    if test -n "${pin_commit}" &&
+       { test "${pin_url}" != "${url}" || test "${pin_ref}" != "${ref}" ; } ; then
+        echo "External repo ${name}: declaration changed" \
+             "('${pin_ref}' -> '${ref}'), dropping the pin"
+        pin_commit=
+    fi
+
     if test ! -d "${dir}/.git" ; then
+        test -z "${offline}" ||
+            error "External repo ${name}: ${dir} is not cloned yet," \
+                  "cannot clone ${url} with TE_EXT_REPOS_OFFLINE=yes"
         echo "External repo ${name}: cloning ${url}"
         git clone --no-checkout "${url}" "${dir}" ||
             error "External repo ${name}: failed to clone ${url}"
+    else
+        # The clone is reused across builds, so it may well come from
+        # a URL that is no longer the declared one. Fetching would
+        # then go to the old origin and the build would silently use
+        # the code of a different repository.
+        origin="$(git -C "${dir}" config --get remote.origin.url)" || origin=
+        if test "${origin}" != "${url}" ; then
+            test -z "${offline}" ||
+                error "External repo ${name}: origin is '${origin}' but" \
+                      "'${url}' is declared, cannot re-fetch with" \
+                      "TE_EXT_REPOS_OFFLINE=yes"
+            warn "External repo ${name}: origin changed" \
+                 "'${origin}' -> '${url}', re-fetching"
+            git -C "${dir}" remote set-url origin "${url}" ||
+                error "External repo ${name}: failed to set origin to ${url}"
+            # Refs of the previous origin must not survive: a stale
+            # origin/<ref> would resolve to a commit of the old
+            # repository
+            git -C "${dir}" fetch --tags --prune --force origin ||
+                error "External repo ${name}: failed to fetch ${url}"
+        fi
     fi
 
-    commit="$(resolve_ref "${dir}" "${ref}")" || commit=
+    if test -n "${pin_commit}" && test -z "${update}" ; then
+        # The pin is what makes a build reproducible: whatever the ref
+        # points at upstream now, the commit resolved when the pin was
+        # made is the one that gets built
+        if has_commit "${dir}" "${pin_commit}" ; then
+            commit="${pin_commit}"
+        elif test -n "${offline}" ; then
+            error "External repo ${name}: pinned commit ${pin_commit} is" \
+                  "missing and TE_EXT_REPOS_OFFLINE=yes forbids fetching"
+        else
+            echo "External repo ${name}: fetching pinned ${pin_commit}"
+            git -C "${dir}" fetch --tags origin ||
+                error "External repo ${name}: failed to fetch ${url}"
+            has_commit "${dir}" "${pin_commit}" ||
+                error "External repo ${name}: pinned commit ${pin_commit}" \
+                      "is not in ${url} any more; re-run with" \
+                      "--update-ext-libs to move to '${ref}'"
+            commit="${pin_commit}"
+        fi
+    else
+        commit="$(resolve_ref "${dir}" "${ref}")" || commit=
 
-    # A ref matching a remote branch must follow the branch tip,
-    # so it is re-fetched even if it is already resolvable
-    if git -C "${dir}" rev-parse --quiet --verify \
-           "refs/remotes/origin/${ref}" >/dev/null ; then
-        test "${TE_EXT_REPOS_OFFLINE}" = yes || commit=
+        # Only an explicit update looks upstream for a newer commit
+        test -z "${update}" || commit=
+
+        if test -z "${commit}" ; then
+            test -z "${offline}" ||
+                error "External repo ${name}: cannot resolve ref '${ref}'" \
+                      "locally and TE_EXT_REPOS_OFFLINE=yes forbids fetching"
+            echo "External repo ${name}: fetching ${url}"
+            git -C "${dir}" fetch --tags origin ||
+                error "External repo ${name}: failed to fetch ${url}"
+            commit="$(resolve_ref "${dir}" "${ref}")" ||
+                error "External repo ${name}: cannot resolve ref '${ref}'"
+        fi
+
+        if test -z "${pin_commit}" ; then
+            echo "External repo ${name}: pinning ${ref} to ${commit}"
+        elif test "${pin_commit}" = "${commit}" ; then
+            echo "External repo ${name}: ${ref} is already up to date" \
+                 "(${commit})"
+        else
+            echo "External repo ${name}: updating ${ref}" \
+                 "from ${pin_commit} to ${commit}"
+        fi
+        write_pin "${pin_file}" "${url}" "${ref}" "${commit}"
     fi
 
-    if test -z "${commit}" ; then
-        echo "External repo ${name}: fetching ${url}"
-        git -C "${dir}" fetch --tags origin ||
-            error "External repo ${name}: failed to fetch ${url}"
-        commit="$(resolve_ref "${dir}" "${ref}")" ||
-            error "External repo ${name}: cannot resolve ref '${ref}'"
-    fi
+    head="$(git -C "${dir}" rev-parse HEAD 2>/dev/null)" || head=
 
-    if test "$(git -C "${dir}" rev-parse HEAD 2>/dev/null)" != "${commit}" ||
-       ! git -C "${dir}" diff --quiet HEAD 2>/dev/null ; then
+    if test "${head}" = "${commit}" && repo_is_checked_out "${dir}" ; then
+        # Already where we want to be. Sources edited in place are
+        # left alone on purpose: rebuilding them is the whole point
+        # of editing an external library in the checkout directory.
+        if repo_is_dirty "${dir}" ; then
+            warn "External repo ${name}: ${dir} has local modifications," \
+                 "building them as is"
+        fi
+    else
+        if repo_is_dirty "${dir}" && test "${TE_EXT_REPOS_FORCE}" != yes ; then
+            error "External repo ${name}: ${dir} has local modifications" \
+                  "and must move to '${ref}'; commit or stash them, or set" \
+                  "TE_EXT_REPOS_FORCE=yes to discard them"
+        fi
         git -C "${dir}" checkout --force --detach "${commit}" ||
             error "External repo ${name}: failed to check out '${ref}'"
     fi

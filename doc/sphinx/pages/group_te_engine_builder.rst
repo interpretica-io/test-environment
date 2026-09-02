@@ -193,7 +193,23 @@ TE_EXT_REPO
 
 TE_EXT_REPO directive declares an external git repository that provides TE libraries (TAPI, agent-side configuration subtrees, RPC implementations) which are developed and versioned outside of the TE source tree.
 
-Before platforms are built, the Builder clones the repository into ${TE_BUILD}/ext-repos/[repository name] and checks out the requested reference (tag, commit hash or branch name) with a detached HEAD. Tag and commit references are resolved offline once fetched, so re-builds do not touch the network; branch references follow the branch tip and are re-fetched on every build (set TE_EXT_REPOS_OFFLINE=yes in the environment to suppress fetching). Pin a tag or a commit hash for reproducible builds.
+Before platforms are built, the Builder clones the repository into ${TE_BUILD}/ext-repos/[repository name] and checks out the requested reference (tag, commit hash or branch name) with a detached HEAD.
+
+A build never moves to a newer commit on its own. The first time a reference is resolved, the resulting commit is written to ${TE_BUILD}/ext-repos/[repository name].pin, and every later build uses that commit whatever the reference points at upstream by then, without touching the network. This holds for branch names as well: a branch is resolved once and then stays put, so a build changes only when something in the configuration changes. The commit in use is printed on every build.
+
+Moving to a newer commit is an explicit action - run dispatcher.sh with the --update-ext-libs option:
+
+.. ref-code-block:: none
+
+	./dispatcher.sh --update-ext-libs ...
+
+It re-resolves the references, rewrites the pins and reports what moved and where. Changing the URL or the reference in the Builder configuration file or in the catalog also drops the pin, since that is a request for a different commit.
+
+The checkout directory outlives a single build, so the declared URL is compared with the origin of the existing clone. If the repository has moved, the origin is updated and the new one is re-fetched (stale refs of the previous origin are pruned), with a warning, instead of silently building the code of the old repository.
+
+Sources edited in place in the checkout directory are never discarded silently, so that an external library can be debugged without leaving the build tree. While the requested commit is already checked out, local modifications - both tracked changes and untracked files - are kept and built as is, with a warning. Moving the checkout to another commit over such modifications is an error; commit or stash them, or set TE_EXT_REPOS_FORCE=yes in the environment to discard them.
+
+Set TE_EXT_REPOS_OFFLINE=yes in the environment to forbid network access altogether: whatever is already available locally is used as is, and anything that would require cloning or fetching - a repository that has not been cloned yet, a reference that does not resolve locally, a missing pinned commit, a changed URL - is reported as an error instead of quietly reaching out to the network. It cannot be combined with --update-ext-libs.
 
 Each declared library is a subdirectory of the repository (if the list is empty, the repository root itself is treated as a single library named after the repository). The libraries are appended to the platform library list and their sources are copied into the platform build workspace, so they are built exactly as if they were subdirectories of ${TE_BASE}/lib. A library must therefore contain a meson.build following the contract of ${TE_BASE}/lib/meson.build subdirectories: append its files to 'sources' and 'headers', list TE dependencies in 'te_libs', etc.
 
@@ -256,6 +272,8 @@ An agent-side library registers its configuration subtree without any modificati
 	}
 
 	TE_RCF_PCH_CONF_EXT(my_conf_init);
+
+All built-in subtrees are set up before any extension is initialized, but the order in which the extensions themselves are initialized is unspecified: it follows the order in which the constructors run, which depends on the linker and on the way the libraries are linked. Extensions must not depend on each other or on being initialized first or last.
 
 Additional RPC definitions shipped in the repository can be added with the usual TE_LIB_PARMS directive for rpcxdr; reference them relative to ${TE_BASE}/lib/rpcxdr so that the path stays valid inside build workspaces (external library sources are copied to lib/[library name] there):
 
