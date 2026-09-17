@@ -807,20 +807,35 @@ extern int rcf_ch_kill_thread(unsigned int tid);
  */
 
 /**
+ * Instance names that the Command Handler passes to every configuration
+ * tree handler: always @c RCF_MAX_PARAMS of them, the unused ones set
+ * to @c NULL.
+ *
+ * The handlers are declared with the names spelled out rather than with
+ * an ellipsis on purpose. AArch64 passes variadic arguments differently
+ * from the named ones, so a handler that declares fewer parameters than
+ * the caller passes would look for them in the wrong place there, while
+ * extra named arguments that a handler ignores are harmless.
+ */
+#define RCF_CH_CFG_INST_NAMES                                           \
+    const char *, const char *, const char *, const char *,             \
+    const char *, const char *, const char *, const char *,             \
+    const char *, const char *
+
+/**
  * Prototype for get instance value routine.
  *
  * @param gid       group identifier
  * @param oid       full object instance identifier
  * @param value     location for the value
  *                  (a buffer of RCF_MAX_VAL bytes size)
- * @param ...       Up to 10 instance names (if there are less instances
- *                  in configuration path than arguments, extra arguments
- *                  will be set to @c NULL)
  *
  * @return Status code
+ *
+ * @note The parameters after the named ones are #RCF_CH_CFG_INST_NAMES.
  */
 typedef te_errno (* rcf_ch_cfg_get)(unsigned int gid, const char *oid,
-                                    char *value, ...);
+                                    char *value, RCF_CH_CFG_INST_NAMES);
 
 /**
  * Prototype for set instance value routine.
@@ -828,14 +843,14 @@ typedef te_errno (* rcf_ch_cfg_get)(unsigned int gid, const char *oid,
  * @param gid       group identifier
  * @param oid       full object instance identifier
  * @param value     value to set
- * @param ...       Up to 10 instance names (if there are less instances
- *                  in configuration path than arguments, extra arguments
- *                  will be set to @c NULL)
  *
  * @return Status code
+ *
+ * @note The parameters after the named ones are #RCF_CH_CFG_INST_NAMES.
  */
 typedef te_errno (* rcf_ch_cfg_set)(unsigned int gid, const char *oid,
-                                    const char *value, ...);
+                                    const char *value,
+                                    RCF_CH_CFG_INST_NAMES);
 
 /**
  * Prototype for add instance routine.
@@ -843,28 +858,27 @@ typedef te_errno (* rcf_ch_cfg_set)(unsigned int gid, const char *oid,
  * @param gid       group identifier
  * @param oid       full object instance identifier
  * @param value     value to set or NULL
- * @param ...       Up to 10 instance names (if there are less instances
- *                  in configuration path than arguments, extra arguments
- *                  will be set to @c NULL)
  *
  * @return Status code
+ *
+ * @note The parameters after the named ones are #RCF_CH_CFG_INST_NAMES.
  */
 typedef te_errno (* rcf_ch_cfg_add)(unsigned int gid, const char *oid,
-                                    const char *value, ...);
+                                    const char *value,
+                                    RCF_CH_CFG_INST_NAMES);
 
 /**
  * Prototype for delete instance routine.
  *
  * @param gid       group identifier
  * @param oid       full object instance identifier
- * @param ...       Up to 10 instance names (if there are less instances
- *                  in configuration path than arguments, extra arguments
- *                  will be set to @c NULL)
  *
  * @return Status code
+ *
+ * @note The parameters after the named ones are #RCF_CH_CFG_INST_NAMES.
  */
 typedef te_errno (* rcf_ch_cfg_del)(unsigned int gid, const char *oid,
-                                    ...);
+                                    RCF_CH_CFG_INST_NAMES);
 
 /**
  * Prototype for a routine that returns the list of instance names
@@ -879,15 +893,14 @@ typedef te_errno (* rcf_ch_cfg_del)(unsigned int gid, const char *oid,
  *                  (list entries should be separated with SPACE character.
  *                  For example if we need to return names 'a', 'b', 'c',
  *                  then returned string would be "a b c"
- * @param ...       Up to 10 instance names (if there are less instances
- *                  in configuration path than arguments, extra arguments
- *                  will be set to @c NULL)
  *
  * @return Status code
+ *
+ * @note The parameters after the named ones are #RCF_CH_CFG_INST_NAMES.
  */
 typedef te_errno (* rcf_ch_cfg_list)(unsigned int gid, const char *oid,
                                      const char *sub_id,
-                                     char **list, ...);
+                                     char **list, RCF_CH_CFG_INST_NAMES);
 
 /**
  * Propotype of the commit function.

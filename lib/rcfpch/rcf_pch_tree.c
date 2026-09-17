@@ -929,16 +929,21 @@ build(const ta_conf_node *n, ta_conf_mirror **cursor,
     m->node = n;
     TE_STRLCPY(m->pch.sub_id, n->name, RCF_MAX_NAME);
 
+    /*
+     * The trampolines ignore the instance names, so they take them as
+     * variadic arguments which they never read; cast as the node
+     * macros do.
+     */
     if (has_get(n))
-        m->pch.get = tramp_get;
+        m->pch.get = (rcf_ch_cfg_get)tramp_get;
     if (has_set(n))
-        m->pch.set = tramp_set;
+        m->pch.set = (rcf_ch_cfg_set)tramp_set;
     if (has_add(n))
-        m->pch.add = tramp_add;
+        m->pch.add = (rcf_ch_cfg_add)tramp_add;
     if (n->del != NULL)
-        m->pch.del = tramp_del;
+        m->pch.del = (rcf_ch_cfg_del)tramp_del;
     if (n->list != NULL)
-        m->pch.list = tramp_list;
+        m->pch.list = (rcf_ch_cfg_list)tramp_list;
     if (n->commit != NULL)
     {
         m->pch.commit = tramp_commit;
