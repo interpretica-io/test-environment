@@ -22,6 +22,7 @@
 
 #include "logger_api.h"
 #include "logger_ta.h"
+#include "te_shell_cmd.h"
 
 #include "agentlib.h"
 #include "rcf_common.h"
