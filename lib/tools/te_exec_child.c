@@ -66,6 +66,7 @@ pipe_cloexec_parent_end(int pipe_fd[2], bool input)
     return 0;
 }
 
+#if defined(HAVE_SCHED_SETAFFINITY) && defined(HAVE_SCHED_GETAFFINITY)
 static te_errno
 printf_affinity(pid_t pid)
 {
@@ -121,6 +122,7 @@ set_affinity(pid_t pid, const te_exec_affinity_param *affinity)
     printf_affinity(pid);
     return 0;
 }
+#endif /* HAVE_SCHED_SETAFFINITY && HAVE_SCHED_GETAFFINITY */
 
 static te_errno
 set_priority(const te_exec_priority_param *prio)
