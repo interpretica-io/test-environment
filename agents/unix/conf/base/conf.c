@@ -4232,7 +4232,7 @@ static te_errno
 mcast_link_addr_del(unsigned int gid, const char *oid, const char *ifname,
                     const char *addr)
 {
-    te_errno rc;
+    te_errno rc = 0;
 #ifndef __linux__
     ifs_list_el *p;
     mma_list_el *q;
