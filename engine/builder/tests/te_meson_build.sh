@@ -38,6 +38,9 @@ done
 # platform is named.
 TEST_PLATFORM=default
 
+# The catalog handed to the build, if any (dispatcher.sh --external).
+CATALOG=
+
 # Create a directory $1 with one source file $2 and the meson.build
 # that names it: the least a library can hold. The test does not
 # compile it.
@@ -84,6 +87,7 @@ with_builder() {
         TE_INSTALL="${WORK}/inst"
         TE_INSTALL_NUT="${WORK}/inst/nut"
         TE_INSTALL_SUITE="${WORK}/inst/suites"
+        TE_EXTERNAL_YML="${CATALOG}"
         # shellcheck source=../te_meson_build
         . "${MESON_BUILD}"
         set +e
@@ -106,7 +110,7 @@ mk_conf() {
 }
 
 # Process ${WORK}/builder.conf into ${WORK}/processed the way a build
-# does.
+# does, catalog first when there is one.
 process_conf() {
     if with_builder process_builder_conf "${WORK}/builder.conf" \
             >"${WORK}/processed" 2>"${WORK}/err" ; then
@@ -212,6 +216,47 @@ TE_EXT_REPO([extselftest], [], [${BARE}], [], [tapi_ext_selftest])
 EOF
 if process_conf ; then
     expect_refused "URL and ref are mandatory"
+fi
+
+step "TE_EXT_REPO_USE takes the URL and the ref from the catalog"
+CATALOG="${WORK}/external.yml"
+cat >"${CATALOG}" <<EOF
+repositories:
+  - name: extselftest
+    url: ${BARE}
+    ref: v1
+    libs:
+      - tapi_ext_selftest
+EOF
+mk_conf <<'EOF'
+TE_EXT_REPO_USE([extselftest], [], [tapi_ext_selftest])
+EOF
+if process_conf ; then
+    expect_eq "the configuration error" "$(conf_get TE_BS_CONF_ERR)" ""
+    expect_eq "the catalog URL" \
+              "$(conf_get TE_BS_EXT_REPO_extselftest_URL)" "${BARE}"
+    expect_eq "the catalog ref" \
+              "$(conf_get TE_BS_EXT_REPO_extselftest_REF)" v1
+    expect_eq "the library sources" \
+        "$(conf_get "TE_BS_LIB_${TEST_PLATFORM}_tapi_ext_selftest_SOURCES")" \
+        "${LIB_SRC}"
+fi
+
+step "TE_EXT_REPO_USE refuses a library the catalog does not provide"
+mk_conf <<'EOF'
+TE_EXT_REPO_USE([extselftest], [], [tapi_not_there])
+EOF
+if process_conf ; then
+    expect_refused "does not provide library tapi_not_there"
+fi
+
+step "TE_EXT_REPO_USE refuses a repository that was never declared"
+CATALOG=
+mk_conf <<'EOF'
+TE_EXT_REPO_USE([nosuchrepo], [], [tapi_ext_selftest])
+EOF
+if process_conf ; then
+    expect_refused "nosuchrepo is not declared"
 fi
 
 step "The sources land where the configuration says they will"
