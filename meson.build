@@ -61,6 +61,16 @@ te_rcf_consistency_checks = find_program('engine/builder/te_rcf_consistency_chec
 
 te_generate_symtbl = find_program('engine/builder/te_generate_symtbl.sh')
 
+#
+# Mach-O prefixes every C symbol with an underscore, which the symbol
+# table generator has to strip off.
+#
+if host_machine.system() == 'darwin'
+    te_symtbl_args = [ '--strip-underscore' ]
+else
+    te_symtbl_args = []
+endif
+
 cc = meson.get_compiler('c')
 
 # Packages names (Debian/Ubuntu and Fedora/RHEL) for necessary dependencies

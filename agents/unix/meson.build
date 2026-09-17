@@ -463,7 +463,8 @@ if get_option('agent-unix-symtbl')
     c_args += [ '-DENABLE_GENERATED_SYMTBL' ]
     symtbl = custom_target('gen-symtbl', output: 'symtbl.c', capture: true,
                            input: [ symtbl_src ],
-                           command: [ te_generate_symtbl, nm, '@INPUT@' ])
+                           command: [ te_generate_symtbl, nm, te_symtbl_args,
+                                      '@INPUT@' ])
     generated_sources += [ symtbl ]
 endif
 
