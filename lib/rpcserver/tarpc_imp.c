@@ -909,7 +909,7 @@ _thread_create_1_svc(tarpc_thread_create_in *in,
                                  strdup(in->name.name_val));
 
     if (out->retval == 0)
-        out->tid = (tarpc_pthread_t)tid;
+        out->tid = TARPC_PTHREAD_T_H2RPC(tid);
 
     return true;
 }
@@ -923,7 +923,7 @@ _thread_cancel_1_svc(tarpc_thread_cancel_in *in,
     UNUSED(rqstp);
     memset(out, 0, sizeof(*out));
 
-    out->retval = pthread_cancel((pthread_t)in->tid);
+    out->retval = pthread_cancel(TARPC_PTHREAD_T(in->tid));
 
     return true;
 }
@@ -937,7 +937,7 @@ _thread_join_1_svc(tarpc_thread_join_in *in,
     UNUSED(rqstp);
     memset(out, 0, sizeof(*out));
 
-    out->retval = pthread_join((pthread_t)in->tid, NULL);
+    out->retval = pthread_join(TARPC_PTHREAD_T(in->tid), NULL);
     return true;
 }
 
@@ -1062,14 +1062,14 @@ TARPC_FUNC(getpid, {}, { MAKE_CALL(out->retval = func_void()); })
 /*-------------- pthread_self() --------------------------*/
 TARPC_FUNC(pthread_self, {},
 {
-    MAKE_CALL(out->retval = (tarpc_pthread_t)func());
+    MAKE_CALL(out->retval = TARPC_PTHREAD_T_H2RPC(func()));
 }
 )
 
 /*-------------- pthread_cancel() --------------------------*/
 TARPC_FUNC(pthread_cancel, {},
 {
-    MAKE_CALL(out->retval = func(in->tid));
+    MAKE_CALL(out->retval = func(TARPC_PTHREAD_T(in->tid)));
     if (out->retval != 0)
     {
         te_rpc_error_set(TE_OS_RC(TE_RPC, out->retval), "");
@@ -1116,7 +1116,7 @@ TARPC_FUNC(pthread_setcanceltype, {},
 TARPC_FUNC(pthread_join, {},
 {
     void *p;
-    MAKE_CALL(out->retval = func(in->tid, &p));
+    MAKE_CALL(out->retval = func(TARPC_PTHREAD_T(in->tid), &p));
     out->ret = (uintptr_t)p;
     if (out->retval != 0)
     {
@@ -3383,7 +3383,8 @@ TARPC_FUNC(kill, {},
 
 TARPC_FUNC(pthread_kill, {},
 {
-    MAKE_CALL(out->retval = func(in->tid, signum_rpc2h(in->signum)));
+    MAKE_CALL(out->retval = func(TARPC_PTHREAD_T(in->tid),
+                                 signum_rpc2h(in->signum)));
 }
 )
 
