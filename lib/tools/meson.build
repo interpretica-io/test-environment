@@ -133,9 +133,13 @@ if cc.has_function('strnlen')
     c_args += [ '-DHAVE_STRNLEN' ]
 endif
 
+#
+# POSIX real-time functions live in -lrt on Linux and Solaris2, but
+# they are a part of -lc on FreeBSD and Darwin, where librt is absent.
+#
 deps += [
     cc.find_library('m'),
-    cc.find_library('rt'),
+    cc.find_library('rt', required: false),
     dep_threads
 ]
 
