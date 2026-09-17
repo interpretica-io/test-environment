@@ -75,8 +75,11 @@ static void *logfork_clnt_sockd_lock = NULL;
 static inline int
 open_sock(void)
 {
-    char *port;
-    int   sock;
+    char     *port;
+    int       sock;
+    int       sndbuf = sizeof(logfork_msg);
+    int       cur_sndbuf;
+    socklen_t optlen = sizeof(cur_sndbuf);
 
     struct sockaddr_in addr;
 
@@ -105,6 +108,24 @@ open_sock(void)
 #ifndef WINDOWS
     fcntl(sock, F_SETFD, FD_CLOEXEC);
 #endif
+
+    /*
+     * A whole logfork message goes in a single datagram, and it is
+     * bigger than the default send buffer of a UDP socket on Darwin,
+     * where an oversized datagram is rejected with EMSGSIZE. The
+     * buffer is only ever enlarged, since other systems default to
+     * a much bigger one.
+     */
+    if (getsockopt(sock, SOL_SOCKET, SO_SNDBUF, &cur_sndbuf, &optlen) == 0 &&
+        cur_sndbuf < sndbuf &&
+        setsockopt(sock, SOL_SOCKET, SO_SNDBUF, &sndbuf, sizeof(sndbuf)) < 0)
+    {
+        fprintf(stderr, "Failed to register logfork user: "
+                        "setsockopt(SO_SNDBUF) failed\n");
+        fflush(stderr);
+        close(sock);
+        return -1;
+    }
 
     if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0)
     {
