@@ -206,6 +206,17 @@ struct mmsghdr {
 #endif
 #endif
 
+/**
+ * Convert the RPC representation of a thread identifier to the native
+ * one. It is an integer on Linux and a pointer on Darwin.
+ */
+#define TARPC_PTHREAD_T(_tid)   ((pthread_t)(uintptr_t)(_tid))
+
+/**
+ * Convert a native thread identifier to the RPC representation.
+ */
+#define TARPC_PTHREAD_T_H2RPC(_tid)  ((tarpc_pthread_t)(uintptr_t)(_tid))
+
 /** Extract sigset from in argument */
 #define IN_SIGSET       ((sigset_t *)(rcf_pch_mem_get(in->set)))
 
