@@ -57,6 +57,7 @@
 #include "te_defs.h"
 #include "te_errno.h"
 #include "te_queue.h"
+#include "te_sem.h"
 #include "te_shell_cmd.h"
 #include "comm_agent.h"
 #include "rcf_ch_api.h"
@@ -783,7 +784,7 @@ struct rcf_thread_parameter {
     void     **params;
     te_errno   rc;
     bool sem_created;
-    sem_t      params_processed;
+    te_sem     params_processed;
 };
 
 #define TA_MAX_THREADS 16
@@ -797,11 +798,13 @@ rcf_ch_thread_wrapper(void *arg)
 
     if (parm->is_argv)
         parm->rc = ((rcf_argv_thr_rtn)(parm->addr))(
-                        &parm->params_processed, parm->argc,
+                        TE_SEM_PTR(&parm->params_processed), parm->argc,
                         (char **)(parm->params));
     else
     {
-        parm->rc = ((rcf_thr_rtn)(parm->addr))(&parm->params_processed,
+        sem_t *sem = TE_SEM_PTR(&parm->params_processed);
+
+        parm->rc = ((rcf_thr_rtn)(parm->addr))(sem,
                                                parm->params[0],
                                                parm->params[1],
                                                parm->params[2],
@@ -852,7 +855,11 @@ rcf_ch_start_thread(int *tid,
                 iter->id = 0;
                 if (!iter->sem_created)
                 {
-                    sem_init(&iter->params_processed, false, 0);
+                    if (te_sem_init(&iter->params_processed, 0) != 0)
+                    {
+                        pthread_mutex_unlock(&thread_pool_mutex);
+                        return TE_RC(TE_TA_UNIX, TE_EFAIL);
+                    }
                     iter->sem_created = true;
                 }
                 if ((rc = pthread_create(&iter->id, NULL,
@@ -863,7 +870,7 @@ rcf_ch_start_thread(int *tid,
                 }
                 VERB("started thread %d", iter - thread_pool);
                 iter->active = true;
-                sem_wait(&iter->params_processed);
+                sem_wait(TE_SEM_PTR(&iter->params_processed));
                 pthread_mutex_unlock(&thread_pool_mutex);
                 *tid = (int)(iter - thread_pool);
                 return 0;
