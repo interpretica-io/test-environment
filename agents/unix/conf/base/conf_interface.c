@@ -2273,7 +2273,7 @@ mcast_link_addr_del(const ta_conf_ctx *ctx)
 {
     const char *ifname = ta_conf_ctx_inst(ctx, "interface");
     const char *addr = ta_conf_ctx_inst(ctx, "mcast_link_addr");
-    te_errno rc;
+    te_errno rc = 0;
 #ifndef __linux__
     ifs_list_el *p;
     mma_list_el *q;
