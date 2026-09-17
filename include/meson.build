@@ -151,6 +151,24 @@ foreach h : check_headers
 endforeach
 
 #
+# Check for functions that are absent on some of the supported platforms
+# and whose presence changes the shape of installed headers.
+#
+check_functions = [
+    # POSIX per-process timers: absent on Darwin.
+    'timer_create',
+]
+
+foreach f : check_functions
+    if cc.has_function(f, args: c_args, prefix: '#include <time.h>\n' +
+                                                '#include <unistd.h>')
+        have = 'HAVE_' + f.to_upper().underscorify()
+        conf.set(have, 1)
+        c_args += [ '-D' + have ]
+    endif
+endforeach
+
+#
 # Check RPC headers, start from those which used by others
 #
 check_rpc_headers = [

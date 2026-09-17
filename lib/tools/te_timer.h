@@ -31,6 +31,8 @@
 #ifndef __TE_TIMER_H__
 #define __TE_TIMER_H__
 
+#include "te_config.h"
+
 #include <time.h>
 
 #include "te_defs.h"
@@ -42,8 +44,17 @@ extern "C" {
 
 /** Timer context */
 typedef struct te_timer_t {
-    bool is_valid;   /**< @c true if timer is created */
+    bool is_valid;      /**< @c true if timer is created */
+#ifdef HAVE_TIMER_CREATE
     timer_t id;         /**< POSIX.1 timer ID */
+#else
+    /*
+     * Darwin has no POSIX.1 per-process timers. The timer is only ever
+     * polled here, so a monotonic deadline gives the same observable
+     * behaviour.
+     */
+    struct timespec deadline;   /**< Moment when the timer expires */
+#endif
 } te_timer_t;
 
 /** On-stack timer context initializer */

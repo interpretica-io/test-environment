@@ -316,6 +316,9 @@
 /* Define to 1 if you have the <time.h> header file. */
 #mesondefine HAVE_TIME_H
 
+/* Define to 1 if you have the `timer_create' function. */
+#mesondefine HAVE_TIMER_CREATE
+
 /* Define to 1 if you have the <ucd-snmp/snmp_impl.h> header file. */
 #mesondefine HAVE_UCD_SNMP_SNMP_IMPL_H
 
