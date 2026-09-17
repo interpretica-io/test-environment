@@ -1047,8 +1047,13 @@ te_sockaddr_ip4_to_ip6_mapped(struct sockaddr *addr)
 
     SIN6(addr)->sin6_family = AF_INET6;
     SIN6(addr)->sin6_port = port;
-    SIN6(addr)->sin6_addr.s6_addr32[3] = ip4_addr;
-    SIN6(addr)->sin6_addr.s6_addr16[5] = htons(0xFFFF);
+    /*
+     * Only s6_addr is available in user space everywhere: Darwin
+     * exposes s6_addr16 and s6_addr32 to the kernel alone.
+     */
+    SIN6(addr)->sin6_addr.s6_addr[10] = 0xFF;
+    SIN6(addr)->sin6_addr.s6_addr[11] = 0xFF;
+    memcpy(&SIN6(addr)->sin6_addr.s6_addr[12], &ip4_addr, sizeof(ip4_addr));
 
     return 0;
 }
