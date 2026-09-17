@@ -196,7 +196,13 @@ te_strerror_r(int in_errno, char *buf, size_t buf_len)
 {
     char *ret;
 
-#if defined(_GNU_SOURCE) || (_POSIX_C_SOURCE < 200112L)
+/*
+ * Only glibc provides the GNU-specific strerror_r() that returns
+ * a pointer to the message. Darwin, the BSDs and Solaris2 always
+ * provide the XSI-compliant one that returns an error code, even
+ * when _GNU_SOURCE is requested and _POSIX_C_SOURCE is not defined.
+ */
+#if defined(__GLIBC__) && defined(_GNU_SOURCE)
     ret = strerror_r(in_errno, buf, buf_len);
 #else
     if (strerror_r(in_errno, buf, buf_len) == 0)
