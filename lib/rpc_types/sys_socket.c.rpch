@@ -1524,11 +1524,15 @@ cmsg_type_h2rpc(int level, int type)
                 case SCM_TIMESTAMP:
                     return RPC_SO_TIMESTAMP;
 
+#ifdef SCM_TIMESTAMPNS
                 case SCM_TIMESTAMPNS:
                     return RPC_SO_TIMESTAMPNS;
+#endif
 
+#ifdef SCM_TIMESTAMPING
                 case SCM_TIMESTAMPING:
                     return RPC_SO_TIMESTAMPING;
+#endif
 
                 case ONLOAD_SCM_TIMESTAMPING_STREAM:
                     return RPC_ONLOAD_SCM_TIMESTAMPING_STREAM;
@@ -2059,6 +2063,12 @@ sockaddr_raw2rpc(const void *buf, socklen_t len, tarpc_sa *rpc)
     }
 }
 
+/*
+ * AF_PACKET sockets are a Linux extension: the helpers below are
+ * compiled only where <netpacket/packet.h> declares sockaddr_ll.
+ * All their call sites are already guarded the same way.
+ */
+#ifdef AF_PACKET
 /**
  * Transform native AF_PACKET address to TARPC representation.
  *
@@ -2087,6 +2097,7 @@ af_packet_addr_h2rpc(const struct sockaddr *sa, tarpc_sa *rpc)
            sizeof(ll->sll_addr));
     memcpy(ll->sll_addr, sll->sll_addr, sizeof(sll->sll_addr));
 }
+#endif /* AF_PACKET */
 
 /* See the description in te_rpc_sys_socket.h */
 void
@@ -2390,6 +2401,7 @@ finish:
     }
 }
 
+#ifdef AF_PACKET
 /**
  * Transform TARPC representation of AF_PACKET address to native address.
  *
@@ -2422,6 +2434,7 @@ af_packet_addr_rpc2h(const tarpc_sa *rpc, struct sockaddr *sa)
                sizeof(sll->sll_addr));
     }
 }
+#endif /* AF_PACKET */
 
 /* See the description in te_rpc_sys_socket.h */
 te_errno
@@ -2602,6 +2615,7 @@ phys_addr2str(const uint8_t *addr, size_t addr_len, te_string *str)
     }
 }
 
+#ifdef AF_PACKET
 /**
  * Get string representation of native AF_PACKET address.
  *
@@ -2631,6 +2645,7 @@ af_packet_addr_h2str(const struct sockaddr *addr,
                   MIN(sll->sll_halen, sizeof(sll->sll_addr)),
                   str);
 }
+#endif /* AF_PACKET */
 
 /**
  * Get string representation of TARPC AF_PACKET address.
