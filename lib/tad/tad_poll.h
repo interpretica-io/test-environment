@@ -16,6 +16,8 @@
 #endif
 #include <semaphore.h>
 
+#include "te_sem.h"
+
 #include "te_errno.h"
 #include "te_queue.h"
 
@@ -39,7 +41,7 @@ typedef struct tad_poll_context {
     unsigned int        timeout;    /**< Poll request timeout */
     pthread_t           thread;     /**< Thread ID */
     te_errno            status;     /**< Poll request status */
-    sem_t               sem;
+    te_sem              sem;
 } tad_poll_context;
 
 
