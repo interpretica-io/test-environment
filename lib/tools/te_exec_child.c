@@ -23,6 +23,20 @@
 #include "te_string.h"
 #include "te_errno.h"
 
+#ifndef HAVE_EXECVPE
+#ifdef __APPLE__
+/*
+ * On Darwin the 'environ' symbol is only available to the main
+ * executable, so the environment has to be reached indirectly.
+ */
+#include <crt_externs.h>
+#define TE_ENVIRON (*_NSGetEnviron())
+#else
+extern char **environ;
+#define TE_ENVIRON environ
+#endif
+#endif
+
 #define VALID_FD_PTR(ptr) ((ptr) != NULL && (ptr) != TE_EXEC_CHILD_DEV_NULL_FD)
 
 static void
@@ -358,9 +372,23 @@ te_exec_child(const char *file, char *const argv[],
         }
 
         if (envp == NULL)
+        {
             execvp(file, argv);
+        }
         else
+        {
+#ifdef HAVE_EXECVPE
             execvpe(file, argv, envp);
+#else
+            /*
+             * Darwin and the BSDs have no execvpe(). Since this is
+             * already the child process, replacing its environment
+             * just before the exec has the same effect.
+             */
+            TE_ENVIRON = (char **)envp;
+            execvp(file, argv);
+#endif
+        }
 
         /* Terminate child process in case of exec failure */
         ERROR("%s: execvp[e](%s) failed: %s", __func__, file, strerror(errno));

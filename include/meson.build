@@ -157,6 +157,8 @@ endforeach
 check_functions = [
     # POSIX per-process timers: absent on Darwin.
     'timer_create',
+    # GNU extension: absent on Darwin and the BSDs.
+    'execvpe',
 ]
 
 foreach f : check_functions
