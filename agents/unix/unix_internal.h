@@ -34,6 +34,7 @@
 #include <signal.h>
 #endif
 
+#include "logger_api.h"
 #include "te_sockaddr.h"
 #include "te_str.h"
 #include "rcf_pch.h"
