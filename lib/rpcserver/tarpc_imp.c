@@ -1207,6 +1207,7 @@ TARPC_FUNC(dup2, {},
 })
 
 /*-------------- dup3() -------------------------------*/
+#if HAVE_DUP3
 
 TARPC_FUNC(dup3, {},
 {
@@ -1215,6 +1216,8 @@ TARPC_FUNC(dup3, {},
     MAKE_CALL(out->fd = func(in->oldfd, in->newfd, in->flags));
 }
 )
+
+#endif /* HAVE_DUP3 */
 
 /*-------------- close() ------------------------------*/
 
@@ -1330,6 +1333,7 @@ TARPC_FUNC(accept,
 )
 
 /*-------------- accept4() ------------------------------*/
+#if HAVE_ACCEPT4
 
 TARPC_FUNC(accept4,
 {
@@ -1350,6 +1354,8 @@ TARPC_FUNC(accept4,
                           &(out->addr));
 }
 )
+
+#endif /* HAVE_ACCEPT4 */
 
 /*-------------- socket_connect_close() -----------------------*/
 int
@@ -6279,6 +6285,7 @@ TARPC_FUNC(pipe,
 
 
 /*-------------- pipe2() --------------------------------*/
+#if HAVE_PIPE2
 TARPC_FUNC(pipe2,
 {
     COPY_ARG(filedes);
@@ -6289,6 +6296,8 @@ TARPC_FUNC(pipe2,
                                      in->flags));
 }
 )
+
+#endif /* HAVE_PIPE2 */
 
 /*-------------- socketpair() ------------------------------*/
 
@@ -8874,6 +8883,8 @@ TARPC_FUNC(sendfile_via_splice,
 )
 
 /*-------------- splice() ------------------------------*/
+#if HAVE_SPLICE
+
 TARPC_FUNC(splice,
 {
     COPY_ARG(off_in);
@@ -8905,6 +8916,7 @@ TARPC_FUNC(splice,
         out->off_out.off_out_val[0] = (tarpc_off_t)off_out;
 }
 )
+#endif /* HAVE_SPLICE */
 
 /*-------------- socket_to_file() ------------------------------*/
 #define SOCK2FILE_BUF_LEN  4096
@@ -12541,7 +12553,11 @@ TARPC_FUNC(clock_settime, {},
 
 /*-------------- clock_adjtime() --------------------------------*/
 
-#ifdef HAVE_SYS_TIMEX_H
+/*
+ * Darwin does provide <sys/timex.h>, but neither clock_adjtime() nor
+ * the 'time' member of struct timex, so both have to be checked.
+ */
+#if defined(HAVE_SYS_TIMEX_H) && defined(HAVE_CLOCK_ADJTIME)
 
 /* Convert tarpc_timex structure to native timex structure. */
 static void
