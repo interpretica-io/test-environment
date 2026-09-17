@@ -396,6 +396,44 @@ abandoned_descriptors_close(ta_job_manager_t *manager)
     *n_ab_descr = 0;
 }
 
+#ifndef HAVE_PIPE2
+/**
+ * Create a pipe whose both ends are closed on exec.
+ *
+ * It stands for pipe2() with @c O_CLOEXEC where that GNU extension is
+ * missing, i.e. on Darwin and the BSDs. The race that pipe2() closes
+ * does not matter here, since the control pipe is created before any
+ * job is started.
+ *
+ * @param fds       Where to put the pipe ends.
+ *
+ * @return @c 0 on success, @c -1 with @b errno set otherwise.
+ */
+static int
+pipe_cloexec(int fds[2])
+{
+    unsigned int i;
+
+    if (pipe(fds) != 0)
+        return -1;
+
+    for (i = 0; i < 2; i++)
+    {
+        if (fcntl(fds[i], F_SETFD, FD_CLOEXEC) < 0)
+        {
+            int saved_errno = errno;
+
+            close(fds[0]);
+            close(fds[1]);
+            errno = saved_errno;
+            return -1;
+        }
+    }
+
+    return 0;
+}
+#endif /* !HAVE_PIPE2 */
+
 static te_errno
 ctrl_pipe_create(ta_job_manager_t *manager)
 {
@@ -407,7 +445,12 @@ ctrl_pipe_create(ta_job_manager_t *manager)
         return 0;
     }
 
-    if ((rc = pipe2(manager->ctrl_pipe, O_CLOEXEC)) != 0)
+#ifdef HAVE_PIPE2
+    rc = pipe2(manager->ctrl_pipe, O_CLOEXEC);
+#else
+    rc = pipe_cloexec(manager->ctrl_pipe);
+#endif
+    if (rc != 0)
     {
         ERROR("Control pipe creation failure");
         return te_rc_os2te(rc);
