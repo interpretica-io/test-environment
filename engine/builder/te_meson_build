@@ -14,6 +14,16 @@ SCRIPT_DIR="$(dirname "$0")"
 
 with_config="$1"
 
+# The lock file with the commits of external repositories lives next
+# to the builder configuration file, where the test suite keeps it
+# under version control. Resolve it while the current directory is
+# still the run directory: the build runs from ${TE_BUILD}.
+ext_repos_lock=
+if test -n "${with_config}" && test -e "${with_config}" ; then
+    ext_repos_lock="$(cd "$(dirname "${with_config}")" && pwd)"
+    ext_repos_lock="${ext_repos_lock}/$(basename "${with_config}").lock"
+fi
+
 # List of all available TAD protocols
 TAD_PROTOCOLS_ALL="arp"
 TAD_PROTOCOLS_ALL+=" atm"
@@ -494,8 +504,21 @@ process_agent_proxy() {
     }
 }
 
+#######################################
 # Check that a value may be carried by an entry of the external
-# agent options: ',' separates the entries and ':' the two fields.
+# agent options.
+#
+# ',' separates the entries and ':' the two fields of one, so a
+# value holding either would be read back as two.
+# Arguments:
+#   TA name, for the diagnostics.
+#   Description of the value being checked.
+#   Value to check.
+# Outputs:
+#   Writes the diagnostics to stderr if the value is not usable.
+# Returns:
+#   0 if the value is usable, does not return otherwise.
+#######################################
 check_agent_ext_field() {
     local ta="$1"; shift
     local what="$1"; shift
@@ -508,12 +531,25 @@ check_agent_ext_field() {
     esac
 }
 
-# Process an agent of an external type (declared via an external
-# repository): name it in agent-ext-names and list its extra
-# libraries in agent-ext-libs, both keyed by the agent directory.
-# The platform is a scalar option, as it is for the built-in agent
+#######################################
+# Process an agent of a type an external repository provides.
+#
+# The agent is named in agent-ext-names and its extra libraries are
+# listed in agent-ext-libs, both keyed by the agent directory. The
+# platform is a scalar option, as it is for the built-in agent
 # types: the Builder configures meson once per platform, so the
 # external agents of one invocation share it.
+# Globals:
+#   agent_ext_platform
+#   agent_ext_names
+#   agent_ext_libs
+# Arguments:
+#   TA name.
+#   Prefix of the TE_BS_TA_* variables of the agent.
+#   Agent type directory, as the repository provides it.
+# Returns:
+#   0, or does not return if a name would break the encoding.
+#######################################
 process_agent_ext() {
     local ta="$1"; shift
     local pfx="$1"; shift
@@ -536,7 +572,9 @@ process_agent_ext() {
         agent_ext_libs="${agent_ext_libs}${agent_ext_libs:+,}${ta_dir}:${l}"
     done
 
-    eval ${libs_var}=
+    # The libraries are handed to meson above, so keep
+    # process_parameters() from warning about an unsupported list
+    printf -v "${libs_var}" '%s' ''
 }
 
 process_agent() {
@@ -1074,10 +1112,20 @@ build_all () {
 
     # Fetch the repositories declared with TE_EXT_REPO before the
     # platforms are built: the library lists name their sources,
-    # and te_cross_build_meson copies them into the workspaces.
+    # and te_cross_build_meson copies them into the workspaces. The
+    # lock file next to the builder configuration file records the
+    # commits, where the test suite keeps it under version control.
+    local ext_repos_update=
+    test "${TE_EXT_REPOS_UPDATE:-}" != yes || ext_repos_update=--update
     test -z "${TE_BS_EXT_REPOS}" ||
-        ${SCRIPT_DIR}/te_fetch_ext_repos builder.conf.processed ||
+        ${SCRIPT_DIR}/te_fetch_ext_repos ${ext_repos_update} \
+            builder.conf.processed "${ext_repos_lock}" ||
         error "Failed to fetch external repositories"
+
+    if test "${TE_EXT_REPOS_FETCH_ONLY:-}" = yes ; then
+        echo "External repositories are ready; --fetch-external-only builds nothing"
+        return 0
+    fi
 
     process_platforms
 
