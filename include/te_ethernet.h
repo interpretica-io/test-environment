@@ -14,6 +14,9 @@
 #if HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif
+#if HAVE_STDINT_H
+#include <stdint.h>
+#endif
 #if HAVE_NET_ETHERNET_H
 #include <net/ethernet.h>
 #endif
@@ -99,6 +102,66 @@
 
 #ifndef ETHER_DATA_LEN
 #define ETHER_DATA_LEN 1500
+#endif
+
+/*
+ * <linux/if_ether.h> definitions used across TE. Platforms without
+ * that header, such as Darwin, Solaris2 and the BSDs, get equivalents
+ * here so that the common code needs no conditionals.
+ */
+
+#ifndef ETH_ALEN
+#define ETH_ALEN        ETHER_ADDR_LEN
+#endif
+
+#ifndef ETH_HLEN
+#define ETH_HLEN        ETHER_HDR_LEN
+#endif
+
+#ifndef ETH_DATA_LEN
+#define ETH_DATA_LEN    ETHER_DATA_LEN
+#endif
+
+#ifndef ETH_P_ALL
+#define ETH_P_ALL       0x0003  /**< Every packet */
+#endif
+#ifndef ETH_P_IP
+#define ETH_P_IP        0x0800  /**< Internet Protocol packet */
+#endif
+#ifndef ETH_P_ARP
+#define ETH_P_ARP       0x0806  /**< Address Resolution packet */
+#endif
+#ifndef ETH_P_IPV6
+#define ETH_P_IPV6      0x86DD  /**< IPv6 over bluebook */
+#endif
+#ifndef ETH_P_PAUSE
+#define ETH_P_PAUSE     0x8808  /**< IEEE Pause frames */
+#endif
+#ifndef ETH_P_8021Q
+#define ETH_P_8021Q     0x8100  /**< 802.1Q VLAN Extended Header */
+#endif
+#ifndef ETH_P_8021AD
+#define ETH_P_8021AD    0x88A8  /**< 802.1ad Service VLAN */
+#endif
+#ifndef ETH_P_PPP_DISC
+#define ETH_P_PPP_DISC  0x8863  /**< PPPoE discovery messages */
+#endif
+#ifndef ETH_P_PPP_SES
+#define ETH_P_PPP_SES   0x8864  /**< PPPoE session messages */
+#endif
+
+#ifndef HAVE_LINUX_IF_ETHER_H
+/**
+ * Ethernet header in the layout used by @c <linux/if_ether.h>.
+ *
+ * Darwin, Solaris2 and the BSDs name the very same fields
+ * differently, so TE defines the Linux layout for them.
+ */
+struct ethhdr {
+    uint8_t     h_dest[ETH_ALEN];   /**< Destination MAC address */
+    uint8_t     h_source[ETH_ALEN]; /**< Source MAC address */
+    uint16_t    h_proto;            /**< Packet type ID field */
+} __attribute__((packed));
 #endif
 
 #endif /* !__TE_ETHERNET_H__ */
