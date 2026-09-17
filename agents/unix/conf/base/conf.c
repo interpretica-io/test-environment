@@ -5139,6 +5139,29 @@ net_addr_list(unsigned int gid, const char *oid,
 
 #elif USE_IOCTL
 
+#ifdef __KAME__
+/**
+ * Strip the interface index off a link-local IPv6 address.
+ *
+ * The stacks derived from KAME, Darwin and the BSDs among them, keep
+ * the scope of a link-local address in the third and the fourth bytes
+ * of the address itself, and report it that way. The rest of TE
+ * expects the address as it appears on the wire.
+ *
+ * @param addr      Address to strip the scope off.
+ */
+static void
+in6_addr_clear_scope(struct in6_addr *addr)
+{
+    if (IN6_IS_ADDR_LINKLOCAL(addr) || IN6_IS_ADDR_MC_LINKLOCAL(addr) ||
+        IN6_IS_ADDR_MC_NODELOCAL(addr))
+    {
+        addr->s6_addr[2] = 0;
+        addr->s6_addr[3] = 0;
+    }
+}
+#endif /* __KAME__ */
+
 /** Opaque data for net_addr_list_ifreq_cb() */
 struct net_addr_list_ifreq_cb_data {
     const char *ifname;     /**< Interface name */
@@ -5152,8 +5175,9 @@ net_addr_list_ifreq_cb(struct my_ifreq *ifr, void *opaque)
 {
     struct net_addr_list_ifreq_cb_data *data = opaque;
 
-    size_t  str_addrlen;
-    void   *net_addr;
+    size_t          str_addrlen;
+    void           *net_addr;
+    struct in6_addr addr6;
 
     if (strcmp(ifr->my_ifr_name, data->ifname) != 0 &&
         !is_alias_of(ifr->my_ifr_name, data->ifname))
@@ -5167,7 +5191,11 @@ net_addr_list_ifreq_cb(struct my_ifreq *ifr, void *opaque)
     else if (SA(&ifr->my_ifr_addr)->sa_family == AF_INET6)
     {
         str_addrlen = INET6_ADDRSTRLEN;
-        net_addr = &SIN6(&ifr->my_ifr_addr)->sin6_addr;
+        addr6 = SIN6(&ifr->my_ifr_addr)->sin6_addr;
+#ifdef __KAME__
+        in6_addr_clear_scope(&addr6);
+#endif
+        net_addr = &addr6;
     }
     else
     {
