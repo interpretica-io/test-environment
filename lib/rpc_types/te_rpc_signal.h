@@ -23,8 +23,13 @@
 extern "C" {
 #endif
 
-/* GNU libs defines a libc-protected signal via SIGRTMIN */
+/*
+ * GNU libs defines a libc-protected signal via SIGRTMIN. Darwin has
+ * no real-time signals at all, so there is nothing to protect there.
+ */
+#ifdef SIGRTMIN
 #define SIG_LIBC_PROTECTED (SIGRTMIN - 1)
+#endif
 
 /** TA-independent signal constants */
 typedef enum rpc_signum {
