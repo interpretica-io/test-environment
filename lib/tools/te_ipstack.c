@@ -121,6 +121,7 @@ out:
     return rc;
 }
 
+#ifdef HAVE_NETPACKET_PACKET_H
 /* See description in te_ipstack.h */
 te_errno
 te_ipstack_prepare_raw_tcpv4_packet(uint8_t *raw_packet, ssize_t *total_size,
@@ -210,6 +211,7 @@ te_ipstack_prepare_raw_tcpv4_packet(uint8_t *raw_packet, ssize_t *total_size,
 
     return 0;
 }
+#endif /* HAVE_NETPACKET_PACKET_H */
 
 /* Get 16bit value from a packet, converting it to host byte order */
 static uint16_t

@@ -123,9 +123,11 @@ extern te_errno te_ipstack_calc_l4_cksum(const struct sockaddr  *ip_dst_addr,
  *
  * @return Status code
  */
+#ifdef HAVE_NETPACKET_PACKET_H
 extern te_errno te_ipstack_prepare_raw_tcpv4_packet(
     uint8_t *raw_packet, ssize_t *total_size,
     bool remove_vlan_hdr, struct sockaddr_ll *sadr_ll);
+#endif
 
 /**
  * Reverse addresses and ports of a RAW Ethernet/IP[4,6]/UDP packet,
