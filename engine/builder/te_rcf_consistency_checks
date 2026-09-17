@@ -15,6 +15,20 @@ set -eo pipefail
 EXT_FILES=te_rcf_consistency_checks_files
 
 ##
+# Function calculates SHA-512 of the standard input.
+#
+# Darwin and the BSDs ship shasum(1) instead of GNU sha512sum(1).
+# Both print the digest as the first field.
+#
+sha512() {
+    if command -v sha512sum >/dev/null 2>&1 ; then
+        sha512sum
+    else
+        shasum -a 512
+    fi
+}
+
+##
 # Function creates a list of files for consistency check
 #
 rpc_files() {
@@ -46,7 +60,7 @@ generate() {
         sed '/^\s*$/d' |
         LC_ALL=C sort -u |
         xargs cat |
-        sha512sum |
+        sha512 |
         awk '{print $1}'
 }
 
@@ -70,7 +84,7 @@ generate_c() {
     echo "static const char "
     echo "data[] = { 0x00,"
     tr -d '\n' |
-        od -v -A n -t x1 -w8 |
+        od -v -A n -t x1 |
         sed -r 's/[[:xdigit:]]{2}/0x&,/g'
     echo "0x00 };"
     echo "const char * const"
