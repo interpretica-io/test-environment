@@ -78,7 +78,14 @@ uint32_t log_sequence = 0;
 
 
 #if HAVE_PTHREAD_H
-pthread_mutex_t ta_log_mutex;
+/*
+ * The mutex is initialized statically, because the logging may start
+ * before ta_log_lock_init() is reached, as it does in a process that
+ * the agent has exec()-ed to run an RPC server. An all-zero
+ * pthread_mutex_t happens to be a usable one under glibc, but not on
+ * Darwin, where it is rejected with EINVAL.
+ */
+pthread_mutex_t ta_log_mutex = PTHREAD_MUTEX_INITIALIZER;
 #elif HAVE_SEMAPHORE_H
 sem_t           ta_log_sem;
 #endif
