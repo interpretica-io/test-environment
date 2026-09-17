@@ -12344,7 +12344,10 @@ fcntl_te_wrap_syscall_common(bool use_libc,
         return -1;
     }
 
-    if (cmd == F_GETFD || cmd == F_GETFL ||cmd == F_GETSIG
+    if (cmd == F_GETFD || cmd == F_GETFL
+#if defined (F_GETSIG)
+        || cmd == F_GETSIG
+#endif
 #if defined (F_GETPIPE_SZ)
         || cmd == F_GETPIPE_SZ
 #endif
