@@ -188,6 +188,11 @@ typedef struct pam_message const pam_message_t;
 #include "netconf.h"
 #endif
 
+/*
+ * Interface and SNMP statistics are read from /proc, so they are
+ * available on Linux only.
+ */
+#ifdef __linux__
 #ifndef ENABLE_IFCONFIG_STATS
 #define ENABLE_IFCONFIG_STATS
 #endif
@@ -195,6 +200,7 @@ typedef struct pam_message const pam_message_t;
 #ifndef ENABLE_NET_SNMP_STATS
 #define ENABLE_NET_SNMP_STATS
 #endif
+#endif /* __linux__ */
 
 #ifndef IF_NAMESIZE
 #define IF_NAMESIZE IFNAMSIZ
@@ -721,8 +727,10 @@ rcf_ch_conf_init(void)
         if (ta_unix_conf_route_init() != 0)
             goto fail;
 
+#ifdef __linux__
         if (ta_unix_conf_rule_init() != 0)
             goto fail;
+#endif
 
         if (ta_unix_conf_vm_init() != 0)
             goto fail;
@@ -764,8 +772,10 @@ rcf_ch_conf_init(void)
             goto fail;
 #endif
 
+#ifdef __linux__
         if (ta_unix_conf_cpu_init() != 0)
             goto fail;
+#endif
 
 #ifdef ENABLE_VCM_SUPPORT
         if (ta_unix_conf_vcm_init() != 0)
@@ -788,6 +798,12 @@ rcf_ch_conf_init(void)
             goto fail;
 #endif
 
+        /*
+         * Configuration objects below are built on top of Linux kernel
+         * interfaces and are compiled in on Linux only, see
+         * agents/unix/conf/meson.build.
+         */
+#ifdef __linux__
         if (ta_unix_conf_memory_init() != 0)
             goto fail;
 
@@ -836,6 +852,7 @@ rcf_ch_conf_init(void)
 
         if (ta_unix_conf_loadavg_init() != 0)
             goto fail;
+#endif /* __linux__ */
 
         rcf_pch_rsrc_init();
 
@@ -876,6 +893,12 @@ rcf_ch_conf_init(void)
         }
 #endif /* WITH_SOCKS */
 
+        /*
+         * Configuration objects below are built on top of Linux kernel
+         * interfaces and are compiled in on Linux only, see
+         * agents/unix/conf/meson.build.
+         */
+#ifdef __linux__
         if (ta_unix_conf_macvlan_init() != 0)
         {
             ERROR("Failed to add macvlan interface configuration subtree");
@@ -925,6 +948,7 @@ rcf_ch_conf_init(void)
             ERROR("Failed to add bridge interfaces configuration subtree");
             goto fail;
         }
+#endif /* __linux__ */
 
         if (ta_unix_conf_rlimits_init() != 0)
         {
@@ -948,11 +972,13 @@ rcf_ch_conf_init(void)
         }
 #endif /* WITH_TC */
 
+#ifdef __linux__
         if (ta_unix_conf_block_dev_init() != 0)
         {
             ERROR("Failed to add block devices subtree");
             goto fail;
         }
+#endif /* __linux__ */
 
 #ifdef WITH_BPF
         if (ta_unix_conf_bpf_init() != 0)
@@ -967,8 +993,10 @@ rcf_ch_conf_init(void)
             goto fail;
 #endif
 
+#ifdef __linux__
         if (ta_unix_conf_l4_port_init() != 0)
             goto fail;
+#endif
 
         if (ta_unix_conf_key_init() != 0)
             goto fail;
@@ -1046,11 +1074,15 @@ rcf_ch_conf_fini(void)
     ta_unix_conf_pci_cleanup();
 #endif
 
+#ifdef __linux__
     ta_unix_conf_memory_cleanup();
+#endif
 
     ta_unix_conf_key_fini();
 
+#ifdef __linux__
    (void)ta_unix_conf_sys_tree_fini();
+#endif
 
     ta_unix_conf_cmd_monitor_cleanup();
     if (cfg_socket >= 0)
