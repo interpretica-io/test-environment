@@ -207,6 +207,19 @@ struct mmsghdr {
 #endif
 
 /**
+ * The greatest signal number the platform can deliver.
+ *
+ * Darwin and the BSDs have no real-time signals, hence no SIGRTMAX.
+ */
+#ifdef SIGRTMAX
+#define TARPC_SIGNUM_MAX    SIGRTMAX
+#elif defined(NSIG)
+#define TARPC_SIGNUM_MAX    (NSIG - 1)
+#else
+#define TARPC_SIGNUM_MAX    (_NSIG - 1)
+#endif
+
+/**
  * Convert the RPC representation of a thread identifier to the native
  * one. It is an integer on Linux and a pointer on Darwin.
  */

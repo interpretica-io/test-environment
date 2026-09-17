@@ -3347,7 +3347,7 @@ sigset_cmp(sigset_t *sig_first, sigset_t *sig_second)
     int          in_second;
     int          saved_errno = errno;
 
-    for (i = 1; i <= SIGRTMAX; i++)
+    for (i = 1; i <= TARPC_SIGNUM_MAX; i++)
     {
         in_first = sigismember(sig_first, i);
         in_second = sigismember(sig_second, i);
