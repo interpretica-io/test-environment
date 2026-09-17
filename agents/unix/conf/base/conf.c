@@ -2495,6 +2495,41 @@ ifconf_foreach_ifreq(struct my_ifreq *ifr, size_t length,
     return rc;
 }
 
+/*
+ * Where SIOCGIFHWADDR is missing, that is on Darwin and the BSDs, the
+ * link-layer address is reported as an AF_LINK entry of the interface
+ * configuration.
+ */
+#if !defined(MY_SIOCGIFHWADDR) && defined(AF_LINK) && HAVE_NET_IF_DL_H
+#define USE_IFCONF_LINK_ADDR    1
+
+/** Opaque data for link_addr_ifreq_cb() */
+struct link_addr_ifreq_cb_data {
+    const char    *ifname;  /**< Interface to look for */
+    const uint8_t *addr;    /**< Link-layer address, @c NULL if none */
+};
+
+static te_errno
+link_addr_ifreq_cb(struct my_ifreq *ifr, void *opaque)
+{
+    struct link_addr_ifreq_cb_data *data = opaque;
+    const struct sockaddr_dl       *sdl;
+
+    if (strcmp(ifr->my_ifr_name, data->ifname) != 0 ||
+        SA(&ifr->my_ifr_addr)->sa_family != AF_LINK)
+    {
+        return 0;
+    }
+
+    sdl = (const struct sockaddr_dl *)&ifr->my_ifr_addr;
+    if (sdl->sdl_alen == ETHER_ADDR_LEN)
+        data->addr = (const uint8_t *)LLADDR(sdl);
+
+    /* The interface has been found, stop the traversal */
+    return TE_EEXIST;
+}
+#endif
+
 #endif /* USE_IOCTL */
 
 
@@ -5888,6 +5923,9 @@ link_addr_get(unsigned int gid, const char *oid, char *value,
 {
     te_errno        rc;
     const uint8_t  *ptr = NULL;
+#ifdef USE_IFCONF_LINK_ADDR
+    uint8_t         link_addr_buf[ETHER_ADDR_LEN];
+#endif
 
     UNUSED(gid);
     UNUSED(oid);
@@ -5929,40 +5967,48 @@ link_addr_get(unsigned int gid, const char *oid, char *value,
     else
         ptr = (const uint8_t *)my_ifr_hwaddr_data(req);
 
-#elif defined(__FreeBSD__)
-
-    void           *ifconf_buf = NULL;
-    size_t          ifconf_len;
-    struct ifreq   *p;
-
-    rc = get_ifconf_to_buf(&ifconf_buf, (void **)&p, &ifconf_len);
-    if (rc != 0)
+#elif defined(USE_IFCONF_LINK_ADDR)
     {
-        free(ifconf_buf);
-        return rc;
-    }
+        static const uint8_t            zero_mac[ETHER_ADDR_LEN] = {};
+        void                           *ifconf_buf = NULL;
+        size_t                          ifconf_len;
+        struct my_ifreq                *first_req;
+        struct link_addr_ifreq_cb_data  data;
 
-    for (; *(p->ifr_name) != '\0';
-         p = (struct ifreq *)((caddr_t)p + _SIZEOF_ADDR_IFREQ(*p)))
-    {
-        if ((strcmp(p->ifr_name, ifname) == 0) &&
-            (p->ifr_addr.sa_family == AF_LINK))
+        rc = get_ifconf_to_buf(&ifconf_buf, (void **)&first_req,
+                               &ifconf_len);
+        if (rc != 0)
         {
-            struct sockaddr_dl *sdl =
-                (struct sockaddr_dl *)&(p->ifr_addr);
+            free(ifconf_buf);
+            return rc;
+        }
 
-            if (sdl->sdl_alen == ETHER_ADDR_LEN)
-            {
-                ptr = (const uint8_t *)sdl->sdl_data + sdl->sdl_nlen;
-            }
-            else
-            {
-                /* ptr is NULL - no link-layer address */
-            }
-            break;
+        data.ifname = ifname;
+        data.addr = NULL;
+        (void)ifconf_foreach_ifreq(first_req, ifconf_len,
+                                   link_addr_ifreq_cb, &data);
+        if (data.addr != NULL)
+            memcpy(link_addr_buf, data.addr, sizeof(link_addr_buf));
+        free(ifconf_buf);
+
+        if (data.addr != NULL)
+        {
+            ptr = link_addr_buf;
+        }
+        else
+        {
+            /*
+             * A loopback interface has no link-layer address. Report
+             * the all-zeroes one, the same way as it is done where
+             * SIOCGIFHWADDR is available.
+             */
+            memset(&req, 0, sizeof(req));
+            te_strlcpy(req.my_ifr_name, ifname, sizeof(req.my_ifr_name));
+            CFG_IOCTL(cfg_socket, MY_SIOCGIFFLAGS, &req);
+            if (req.my_ifr_flags & IFF_LOOPBACK)
+                ptr = zero_mac;
         }
     }
-    free(ifconf_buf);
 #endif
 
     if (ptr == NULL)
