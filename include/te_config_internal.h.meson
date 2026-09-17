@@ -25,6 +25,9 @@
 /* Define to 1 if you have the <errno.h> header file. */
 #mesondefine HAVE_ERRNO_H
 
+/* Define to 1 if you have the `execvpe' function. */
+#mesondefine HAVE_EXECVPE
+
 /* Define to 1 if you have the <fcntl.h> header file. */
 #mesondefine HAVE_FCNTL_H
 
