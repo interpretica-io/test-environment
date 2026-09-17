@@ -5486,13 +5486,6 @@ msghdr2str(const struct msghdr *msg)
     return buf;
 }
 
-#if !HAVE_STRUCT_MMSGHDR
-struct mmsghdr {
-    struct msghdr msg_hdr;  /* Message header */
-    unsigned int  msg_len;  /* Number of received bytes for header */
-};
-#endif
-
 static const char *
 mmsghdr2str(const struct mmsghdr *mmsg, int len)
 {

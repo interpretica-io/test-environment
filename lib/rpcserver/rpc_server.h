@@ -155,6 +155,19 @@
 #include "rpc_xdr.h"
 #include "tarpc.h"
 
+/*
+ * sendmmsg()/recvmmsg() are a Linux extension. The structure is
+ * declared here in any case, since the RPC entry points for those
+ * calls are always compiled and report TE_EOPNOTSUPP at run time
+ * where the calls are missing.
+ */
+#if !HAVE_STRUCT_MMSGHDR
+struct mmsghdr {
+    struct msghdr msg_hdr;  /**< Message header */
+    unsigned int  msg_len;  /**< Number of received bytes for header */
+};
+#endif
+
 /** System call number of recvmmsg function */
 #ifndef SYS_recvmmsg
 #ifdef __NR_recvmmsg
