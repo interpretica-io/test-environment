@@ -3199,11 +3199,10 @@ switchdev_name_get(unsigned int gid, const char *oid, char *value,
     if (sep == NULL)
         return TE_RC(TE_TA_UNIX, TE_EINVAL);
 
-    char *switch_id = strndup(id, sep - id);
-    char *port_name = strdup(sep + 1);
-
 #ifdef USE_LIBNETCONF
     {
+        char               *switch_id = strndup(id, sep - id);
+        char               *port_name = strdup(sep + 1);
         netconf_list       *links;
         const netconf_node *node;
 
@@ -3236,14 +3235,15 @@ switchdev_name_get(unsigned int gid, const char *oid, char *value,
             }
         }
         netconf_list_free(links);
-    }
 
-    ERROR("Failed to find rep for '%s/%s'", switch_id, port_name);
-    free(switch_id);
-    free(port_name);
+        ERROR("Failed to find rep for '%s/%s'", switch_id, port_name);
+        free(switch_id);
+        free(port_name);
+    }
 
     return TE_RC(TE_TA_UNIX, TE_ENOENT);
 #else
+    /* Switch ports are reported over netlink only. */
     value[0] = '\0';
 
     return 0;
@@ -3267,10 +3267,9 @@ switchdev_name_list(unsigned int gid, const char *oid,
     UNUSED(gid);
     UNUSED(oid);
 
-    te_string buffer = TE_STRING_INIT;
-
 #ifdef USE_LIBNETCONF
     {
+        te_string           buffer = TE_STRING_INIT;
         netconf_list       *links;
         const netconf_node *node;
 
@@ -3289,16 +3288,15 @@ switchdev_name_list(unsigned int gid, const char *oid,
             }
         }
         netconf_list_free(links);
+
+        *list = buffer.ptr;
     }
-
-    *list = buffer.ptr;
-
-    return 0;
 #else
-    value[0] = '\0';
+    /* Switch ports are reported over netlink only. */
+    *list = NULL;
+#endif
 
     return 0;
-#endif
 }
 
 /**
