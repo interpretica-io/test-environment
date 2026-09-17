@@ -25,9 +25,14 @@ deps += [ dep_rpcs ]
 # - Solaris2 (SunOS 5.11) -lnsl
 # - Modern Linux distros, such as Fedora 28, do not have RPC support
 #   in glibc; libtirpc can be used instead.
+# - Darwin and Solaris2 keep the XDR routines in -lc, so the check has
+#   to record that they are available, not only that an extra library
+#   has been found.
 #
 rpc_lib_found = false
-if not cc.has_function('xdr_bytes', args: te_cflags, dependencies: deps)
+if cc.has_function('xdr_bytes', args: te_cflags, dependencies: deps)
+    rpc_lib_found = true
+else
     dep_rpc = cc.find_library('rpc', required: false)
     if dep_rpc.found() and cc.has_function('xdr_bytes', args: te_cflags,
                                            dependencies: dep_rpc)
