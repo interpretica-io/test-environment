@@ -13,50 +13,65 @@ includes += include_directories('util')
 includes += include_directories('vm')
 includes += include_directories('daemons')
 
+#
+# Configuration objects that every supported UNIX provides.
+#
 sources += files(
     'base/conf.c',
-    'base/conf_block.c',
-    'base/conf_bridge.c',
-    'base/conf_coalesce.c',
-    'base/conf_configfs.c',
-    'base/conf_cpu.c',
-    'base/conf_eth.c',
-    'base/conf_ethtool.c',
-    'base/conf_flow_ctrl.c',
-    'base/conf_iommu.c',
-    'base/conf_ipvlan.c',
     'base/conf_key.c',
-    'base/conf_l4_port.c',
-    'base/conf_loadavg.c',
-    'base/conf_macvlan.c',
-    'base/conf_mem.c',
-    'base/conf_module.c',
-    'base/conf_netconsole.c',
-    'base/conf_ns_net.c',
-    'base/conf_phy.c',
     'base/conf_rlimits.c',
-    'base/conf_rss.c',
-    'base/conf_rx_rules.c',
     'base/conf_selftest.c',
-    'base/conf_stats.c',
-    'base/conf_sys.c',
-    'base/conf_sys_tree.c',
-    'base/conf_tap.c',
-    'base/conf_veth.c',
-    'base/conf_udp_tunnel.c',
-    'base/conf_eee.c',
-    'base/conf_xstats.c',
-    'base/conf_irq.c',
     'process/conf_process.c',
     'route/conf_route.c',
-    'route/conf_route_libnetconf.c',
     'route/conf_route_socket.c',
-    'rule/conf_rule.c',
     'util/conf_cmd_monitor.c',
     'util/conf_getmsg.c',
     'util/te_cmd_monitor.c',
     'vm/conf_vm.c',
 )
+
+#
+# Configuration objects that are built on top of Linux kernel
+# interfaces: ethtool, netlink, /proc, /sys, network namespaces and
+# kernel modules. Other systems, Darwin among them, provide no
+# counterpart, so the objects simply do not appear in the tree there.
+# conf.c skips their initialisation under the same condition.
+#
+if host_machine.system() == 'linux'
+    sources += files(
+        'base/conf_block.c',
+        'base/conf_bridge.c',
+        'base/conf_coalesce.c',
+        'base/conf_configfs.c',
+        'base/conf_cpu.c',
+        'base/conf_eee.c',
+        'base/conf_eth.c',
+        'base/conf_ethtool.c',
+        'base/conf_flow_ctrl.c',
+        'base/conf_iommu.c',
+        'base/conf_ipvlan.c',
+        'base/conf_irq.c',
+        'base/conf_l4_port.c',
+        'base/conf_loadavg.c',
+        'base/conf_macvlan.c',
+        'base/conf_mem.c',
+        'base/conf_module.c',
+        'base/conf_netconsole.c',
+        'base/conf_ns_net.c',
+        'base/conf_phy.c',
+        'base/conf_rss.c',
+        'base/conf_rx_rules.c',
+        'base/conf_stats.c',
+        'base/conf_sys.c',
+        'base/conf_sys_tree.c',
+        'base/conf_tap.c',
+        'base/conf_udp_tunnel.c',
+        'base/conf_veth.c',
+        'base/conf_xstats.c',
+        'route/conf_route_libnetconf.c',
+        'rule/conf_rule.c',
+    )
+endif
 
 conf = get_option('agent-unix-conf')
 if conf.contains('pam')
