@@ -559,6 +559,28 @@ ta_kill_and_wait(pid_t pid, int sig, unsigned int timeout_s)
     return -2;
 }
 
+/**
+ * Bring the child of a fork() into a sane state.
+ *
+ * Both the list of the dead children and the semaphore that guards it
+ * belong to the process that created them. A named semaphore, which is
+ * what te_sem_init() falls back to on Darwin, would otherwise stay
+ * shared with the parent.
+ */
+static void
+ta_children_after_fork(void)
+{
+    te_errno rc;
+
+    ta_children_dead_heap_init();
+
+    (void)te_sem_destroy(&sigchld_sem);
+    rc = te_sem_init(&sigchld_sem, 1);
+    if (rc != 0)
+        LOG_PRINT("Cannot re-initialize sigchld sem after fork(): %s",
+                  te_rc_err2str(rc));
+}
+
 te_errno
 ta_process_mgmt_init(void)
 {
@@ -582,7 +604,7 @@ ta_process_mgmt_init(void)
         LOG_PRINT("Cannot set SIGCHLD action: %s", strerror(errno));
     }
 #ifdef HAVE_PTHREAD_H
-    pthread_atfork(NULL, NULL, ta_children_dead_heap_init);
+    pthread_atfork(NULL, NULL, ta_children_after_fork);
 #endif
 
     return rc;
