@@ -38,6 +38,7 @@
 #include "te_queue.h"
 #include "te_shell_cmd.h"
 #include "te_sleep.h"
+#include "te_sem.h"
 #include "te_string.h"
 #include "logger_api.h"
 #include "logger_ta.h"
@@ -72,7 +73,7 @@ SLIST_HEAD(, ta_children_dead) ta_children_dead_pool;
 /** Head of dead children list */
 SLIST_HEAD(, ta_children_dead) ta_children_dead_list;
 
-static sem_t sigchld_sem;
+static te_sem sigchld_sem;
 
 /** Initialize ta_children_dead heap. */
 static void
@@ -161,7 +162,7 @@ ta_sigchld_handler(void)
      * so we exit and the moment the sema is released the handler
      * should be called by responsible context
      */
-    if (sem_trywait(&sigchld_sem) < 0)
+    if (sem_trywait(TE_SEM_PTR(&sigchld_sem)) < 0)
     {
         errno = saved_errno;
         return;
@@ -265,7 +266,7 @@ ta_sigchld_handler(void)
     else
         errno = saved_errno;
 
-    sem_post(&sigchld_sem);
+    sem_post(TE_SEM_PTR(&sigchld_sem));
 }
 
 /**
@@ -286,7 +287,7 @@ find_dead_child(pid_t pid, int *status)
     if (!ta_children_dead_heap_inited)
         ta_children_dead_heap_init();
 
-    sem_wait(&sigchld_sem);
+    sem_wait(TE_SEM_PTR(&sigchld_sem));
     for (dead = SLIST_FIRST(&ta_children_dead_list);
          dead != NULL; dead = SLIST_NEXT(dead, links))
     {
@@ -310,7 +311,7 @@ find_dead_child(pid_t pid, int *status)
         }
     }
 
-    sem_post(&sigchld_sem);
+    sem_post(TE_SEM_PTR(&sigchld_sem));
     /* call handler to find out if we have any unhandled signals
      * when sem is locked */
     ta_sigchld_handler();
@@ -570,11 +571,9 @@ ta_process_mgmt_init(void)
 #endif
     sigemptyset(&sigact.sa_mask);
 
-    if (sem_init(&sigchld_sem, 0, 1) < 0)
-    {
-        rc = te_rc_os2te(errno);
-        LOG_PRINT("Cannot initialize sigchld sem: %s", strerror(errno));
-    }
+    rc = te_sem_init(&sigchld_sem, 1);
+    if (rc != 0)
+        LOG_PRINT("Cannot initialize sigchld sem: %s", te_rc_err2str(rc));
     /* FIXME: Is it used by RPC */
     sigact.sa_handler = (void *)ta_sigchld_handler;
     if (sigaction(SIGCHLD, &sigact, NULL) != 0)
