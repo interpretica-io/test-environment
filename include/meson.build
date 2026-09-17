@@ -295,6 +295,15 @@ if cc.has_member('struct sockaddr', 'sa_len', args: c_args,
 endif
 
 #
+# Check for the Linux layout of the IPv4 header. Darwin, Solaris2 and
+# the BSDs provide 'struct ip' with differently named members instead.
+#
+if cc.has_type('struct iphdr', args: c_args,
+               prefix: '#include <netinet/ip.h>')
+    conf.set('HAVE_STRUCT_IPHDR', 1)
+endif
+
+#
 # Generate defines for some data types
 #
 types = [

@@ -26,6 +26,7 @@
 
 #include "te_errno.h"
 #include "te_defs.h"
+#include "te_ethernet.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,6 +48,34 @@ struct te_ipstack_pseudo_header_ip6 {
     uint8_t _pad1;
     uint8_t next_hdr;
 };
+
+#ifndef HAVE_STRUCT_IPHDR
+/**
+ * IPv4 header in the layout used by @c <netinet/ip.h> on Linux.
+ *
+ * Darwin, Solaris2 and the BSDs declare the very same header as
+ * @c struct @c ip with differently named members, so TE declares the
+ * Linux layout for them.
+ */
+struct iphdr {
+#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+    uint8_t     version:4;  /**< IP version */
+    uint8_t     ihl:4;      /**< Header length in 4-byte words */
+#else
+    uint8_t     ihl:4;      /**< Header length in 4-byte words */
+    uint8_t     version:4;  /**< IP version */
+#endif
+    uint8_t     tos;        /**< Type of service */
+    uint16_t    tot_len;    /**< Total length */
+    uint16_t    id;         /**< Identification */
+    uint16_t    frag_off;   /**< Flags and fragment offset */
+    uint8_t     ttl;        /**< Time to live */
+    uint8_t     protocol;   /**< Protocol of the payload */
+    uint16_t    check;      /**< Header checksum */
+    uint32_t    saddr;      /**< Source address */
+    uint32_t    daddr;      /**< Destination address */
+} __attribute__((packed));
+#endif
 
 /**
  * VLAN header

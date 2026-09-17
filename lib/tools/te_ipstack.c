@@ -303,28 +303,28 @@ te_ipstack_mirror_udp_packet(uint8_t *pkt, size_t len)
 
     uh = (struct udphdr *)&pkt[pos];
 
-    saved_port = uh->source;
-    uh->source = uh->dest;
-    uh->dest = saved_port;
+    saved_port = uh->uh_sport;
+    uh->uh_sport = uh->uh_dport;
+    uh->uh_dport = saved_port;
 
-    te_sockaddr_set_port(dst_addr, uh->dest);
-    te_sockaddr_set_port(src_addr, uh->source);
+    te_sockaddr_set_port(dst_addr, uh->uh_dport);
+    te_sockaddr_set_port(src_addr, uh->uh_sport);
 
     /*
-     * Note: uh->len may be less than len - pos for small frames
+     * Note: uh->uh_ulen may be less than len - pos for small frames
      * where some padding bytes are added at the end so that Ethernet
      * frame is not shorter than 64 bytes.
      */
-    udp_len = ntohs(uh->len);
+    udp_len = ntohs(uh->uh_ulen);
     if (udp_len > len - pos)
     {
         ERROR("%s(): UDP header has incorrect length field", __FUNCTION__);
         return TE_EBADMSG;
     }
 
-    uh->check = 0;
+    uh->uh_sum = 0;
     return te_ipstack_calc_l4_cksum(dst_addr, src_addr,
                                     IPPROTO_UDP,
                                     &pkt[pos], udp_len,
-                                    &uh->check);
+                                    &uh->uh_sum);
 }
