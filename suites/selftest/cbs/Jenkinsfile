@@ -1,21 +1,72 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2019-2022 OKTET Labs Ltd. All rights reserved.
+//
+// Build Test Environment and run its selftest suite.
+//
+// The stages are the same as they always were. What used to be written
+// into the job is a parameter now, so that the very same job serves a
+// lab and a machine which has nothing but Docker:
+//
+//  - 'ts_cfg' is the configuration to build and run for;
+//  - 'buildOnlyLabel' is the label of the nodes which build in
+//    addition, and no such node is required any more;
+//  - 'mail_to' is where the reports go.
+//
+// Keeping the parameters as they are reproduces the previous
+// behaviour.
+//
+// Required plugins:
+//  - Docker Pipeline
+//  - Email Extension Plugin (if want to send reports)
+//  - JUnit
+//  - Pipeline: Stage Step
+//  - Timestamper
+//  - Warnings Next Generation
 
 pipeline {
     options {
         buildDiscarder(logRotator(numToKeepStr:'14'))
+        //
+        // TE_BASE below points into te/, so the checkout has to go
+        // there. jenkins/pipelines/te-doc does the same.
+        //
+        checkoutToSubdirectory('te')
         disableConcurrentBuilds()
         timestamps()
     }
 
     parameters {
+        string defaultValue: 'gimli1',
+               description: 'Configuration to build and run the suite for',
+               name: 'ts_cfg', trim: true
         string defaultValue: 'te-build-only',
                description: 'Label for run build only job',
                name: 'buildOnlyLabel', trim: false
+        string defaultValue: '',
+               description: 'E-Mail addresses where to send reports',
+               name: 'mail_to', trim: true
+        string defaultValue: '',
+               description: 'Label of the node to build on; ' +
+                            'empty for any node which can run Docker',
+               name: 'buildLabel', trim: true
     }
 
+    //
+    // The build environment is the image described by the Dockerfile
+    // next to this file, so that the job needs no node prepared by
+    // hand, only one which can run Docker. 'buildLabel' pins it to
+    // particular nodes where that matters.
+    //
+    // A Test Agent reads and writes /proc/sys, which a container gets
+    // read-only by default: without --privileged the Configurator
+    // fails to start on the very first object.
+    //
     agent {
-        label "te-build"
+        dockerfile {
+            dir 'te/suites/selftest/cbs'
+            args '--privileged'
+            label "${params.buildLabel}"
+        }
     }
 
     triggers {
@@ -37,7 +88,7 @@ pipeline {
                     lastStage = env.STAGE_NAME
                 }
                 dir("$TS_RUNDIR") {
-                    sh '${TS_TOPDIR}/run.sh --cfg=gimli1 --build-only'
+                    sh '${TS_TOPDIR}/run.sh --cfg=${ts_cfg} --build-only'
                 }
             }
         }
@@ -46,6 +97,16 @@ pipeline {
                 script {
                     def builders = [:]
                     def nodes = getNodes(params.buildOnlyLabel)
+
+                    //
+                    // Where no node carries the label, there is
+                    // nothing to build on: parallel() of an empty map
+                    // is an error, so say so and go on.
+                    //
+                    if (nodes.isEmpty()) {
+                        echo "No node is labelled '${params.buildOnlyLabel}'"
+                        return
+                    }
 
                     for (p in nodes) {
                         def platform = p
@@ -89,7 +150,7 @@ pipeline {
                     sh 'rm -fr * || true'
                     sh '''${TS_TOPDIR}/run.sh -n --log-junit=junit.log \
                               --tester-req=\\!BROKEN                   \
-                              --cfg=gimli1
+                              --cfg=${ts_cfg}
                     '''
                 }
             }
@@ -110,31 +171,40 @@ pipeline {
 
     post {
         unsuccessful {
-            emailext (
-                from: "cbs@oktetlabs.ru",
-                to: "artem.andreev@oktetlabs.ru",
-                recipientProviders: [requestor(), culprits()],
-                subject: "[CI TE] ${env.JOB_NAME} job ${env.BUILD_NUMBER} unsuccessful",
-                body: "Check console output at: ${env.BUILD_URL}, failure step $lastStage",
-            )
+            script {
+                if (params.mail_to != '') {
+                    emailext (
+                        to: params.mail_to,
+                        recipientProviders: [requestor(), culprits()],
+                        subject: "[CI TE] ${env.JOB_NAME} job ${env.BUILD_NUMBER} unsuccessful",
+                        body: "Check console output at: ${env.BUILD_URL}, failure step $lastStage",
+                    )
+                }
+            }
         }
         success {
-            emailext (
-                from: "cbs@oktetlabs.ru",
-                to: "artem.andreev@oktetlabs.ru",
-                recipientProviders: [requestor()],
-                subject: "[CI TE] ${env.JOB_NAME} job ${env.BUILD_NUMBER} success",
-                body: "Check console output at: ${env.BUILD_URL}",
-            )
+            script {
+                if (params.mail_to != '') {
+                    emailext (
+                        to: params.mail_to,
+                        recipientProviders: [requestor()],
+                        subject: "[CI TE] ${env.JOB_NAME} job ${env.BUILD_NUMBER} success",
+                        body: "Check console output at: ${env.BUILD_URL}",
+                    )
+                }
+            }
         }
         fixed {
-            emailext (
-                from: "cbs@oktetlabs.ru",
-                to: "artem.andreev@oktetlabs.ru",
-                recipientProviders: [requestor(), culprits()],
-                subject: "[CI TE] ${env.JOB_NAME} job ${env.BUILD_NUMBER} fixed",
-                body: "Check console output at: ${env.BUILD_URL}",
-            )
+            script {
+                if (params.mail_to != '') {
+                    emailext (
+                        to: params.mail_to,
+                        recipientProviders: [requestor(), culprits()],
+                        subject: "[CI TE] ${env.JOB_NAME} job ${env.BUILD_NUMBER} fixed",
+                        body: "Check console output at: ${env.BUILD_URL}",
+                    )
+                }
+            }
         }
     }
 }
