@@ -75,7 +75,7 @@ cc = meson.get_compiler('c')
 
 # Packages names (Debian/Ubuntu and Fedora/RHEL) for necessary dependencies
 deps_names_deb = {
-    'expect': 'expect-dev',
+    'expect': 'tcl-expect-dev',
     'glib-2.0': 'libglib2.0-dev',
     'jansson': 'libjansson-dev',
     'libcurl': 'libcurl4-openssl-dev',
