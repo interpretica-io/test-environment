@@ -59,12 +59,15 @@ pipeline {
     //
     // A Test Agent reads and writes /proc/sys, which a container gets
     // read-only by default: without --privileged the Configurator
-    // fails to start on the very first object.
+    // fails to start on the very first object. The capabilities alone
+    // are not enough, since the plugin runs the container under the
+    // user id of the node, so -u 0:0 is what actually makes the agent
+    // root inside.
     //
     agent {
         dockerfile {
             dir 'te/suites/selftest/cbs'
-            args '--privileged'
+            args '--privileged -u 0:0'
             label "${params.buildLabel}"
         }
     }
