@@ -95,9 +95,7 @@ pipeline {
         // when it is left at the default, an installation which
         // declares TE_SELFTEST_CFG gets that one instead.
         //
-        TS_RUN_CFG = "${params.ts_cfg == 'gimli1' ?
-                        (env.TE_SELFTEST_CFG ?: params.ts_cfg) :
-                        params.ts_cfg}"
+        TS_RUN_CFG = "${params.ts_cfg == 'gimli1' ? (env.TE_SELFTEST_CFG ?: params.ts_cfg) : params.ts_cfg}"
     }
 
     stages {
