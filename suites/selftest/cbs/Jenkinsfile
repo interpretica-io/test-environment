@@ -15,6 +15,12 @@
 // Keeping the parameters as they are reproduces the previous
 // behaviour.
 //
+// An installation where 'gimli1' means nothing does not have to edit
+// the parameter: it declares TE_SELFTEST_CFG in the environment
+// Jenkins gives to the build, globally, on the folder or on the node,
+// and every build which does not ask for a configuration of its own,
+// the nightly one included, uses that instead.
+//
 // Required plugins:
 //  - Docker Pipeline
 //  - Email Extension Plugin (if want to send reports)
@@ -82,6 +88,16 @@ pipeline {
         TE_INSTALL = "${env.WORKSPACE}/te-build/inst"
         TS_TOPDIR = "${env.WORKSPACE}/te/suites/selftest"
         TS_RUNDIR = "${env.WORKSPACE}/te-selftest-run"
+
+        //
+        // The configuration the stages below build and run for. The
+        // parameter is what a particular build asks for, and it wins;
+        // when it is left at the default, an installation which
+        // declares TE_SELFTEST_CFG gets that one instead.
+        //
+        TS_RUN_CFG = "${params.ts_cfg == 'gimli1' ?
+                        (env.TE_SELFTEST_CFG ?: params.ts_cfg) :
+                        params.ts_cfg}"
     }
 
     stages {
@@ -91,7 +107,7 @@ pipeline {
                     lastStage = env.STAGE_NAME
                 }
                 dir("$TS_RUNDIR") {
-                    sh '${TS_TOPDIR}/run.sh --cfg=${ts_cfg} --build-only'
+                    sh '${TS_TOPDIR}/run.sh --cfg=${TS_RUN_CFG} --build-only'
                 }
             }
         }
@@ -153,7 +169,7 @@ pipeline {
                     sh 'rm -fr * || true'
                     sh '''${TS_TOPDIR}/run.sh -n --log-junit=junit.log \
                               --tester-req=\\!BROKEN                   \
-                              --cfg=${ts_cfg}
+                              --cfg=${TS_RUN_CFG}
                     '''
                 }
             }
