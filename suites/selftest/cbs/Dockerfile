@@ -58,8 +58,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # image carries /usr/sbin/policy-rc.d, which turns the service start in
 # the maintainer scripts into a no-op.
 #
+# curl is the client the nginx tests check the server with, and the
+# curl binary is not what libcurl4-openssl-dev above installs.
+#
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        fio iputils-ping iptables \
+        fio iputils-ping iptables curl \
         nginx-light redis-server memcached libmemcached-tools \
         unbound && \
     rm -rf /var/lib/apt/lists/*
