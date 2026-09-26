@@ -63,3 +63,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         nginx-light redis-server memcached libmemcached-tools \
         unbound && \
     rm -rf /var/lib/apt/lists/*
+
+#
+# The agent starts nginx through $SHELL, and a login over SSH is where
+# it usually gets one. A container has no login, so conf_nginx.c reads
+# a NULL out of getenv() and the Test Agent answers 'path to a tool is
+# not specified' to every nginx test.
+#
+ENV SHELL=/bin/sh
