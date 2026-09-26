@@ -45,3 +45,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libpam0g-dev libelf-dev libsnmp-dev \
         tcl-expect-dev tcl8.6-dev && \
     rm -rf /var/lib/apt/lists/*
+
+# What the suite runs.
+#
+# These are not build dependencies: the suite drives them from a Test
+# Agent, and where the binary is missing the test fails with
+# 'execvp[e](...) failed'. iptables is not any test's subject, but the
+# agent shells out to it while it configures, and without it every
+# single run is buried in 'sh: 1: iptables: not found'.
+#
+# The packages start no daemon while the image is built: the Ubuntu
+# image carries /usr/sbin/policy-rc.d, which turns the service start in
+# the maintainer scripts into a no-op.
+#
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        fio iputils-ping iptables \
+        nginx-light redis-server memcached libmemcached-tools \
+        unbound && \
+    rm -rf /var/lib/apt/lists/*
