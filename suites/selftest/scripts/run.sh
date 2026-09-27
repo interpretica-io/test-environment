@@ -55,7 +55,7 @@ case "${TS_SITE}" in
         ;;
     auto)
         case "${TS_CFG}" in
-            "" | localhost | gimli1)
+            "" | localhost | localselftest | gimli1)
                 TS_SITE=none
                 ;;
             *)
@@ -66,7 +66,7 @@ case "${TS_SITE}" in
         ;;
     *)
         case "${TS_CFG}" in
-            "" | localhost | gimli1)
+            "" | localhost | localselftest | gimli1)
                 echo "Site-specific options do not make sense" \
                      "with local configurations" >&2
                 exit 1

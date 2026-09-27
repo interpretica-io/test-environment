@@ -1,0 +1,3 @@
+# Remove what conf/env/localselftest created. Deleting one end takes
+# the other with it.
+ip link del "${TE_IUT_TST1}" >/dev/null 2>&1 || true

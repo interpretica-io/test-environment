@@ -1,0 +1,36 @@
+# Two Test Agents on this very host.
+#
+# 'localhost' runs one agent, so every environment which asks for a
+# tester fails to bind and most of the suite never runs. Two agents
+# here cannot both take 'lo': an agent locks an interface for the
+# whole host rather than for itself, and the second one gets
+# RCF_PCH-EPERM before the Configurator has started. So each agent
+# gets one end of a veth pair, which is also nearer to what two hosts
+# in a lab look like.
+#
+# The pair is made below and removed by the finish script. Making it
+# needs a privileged process, which is the ordinary state of things
+# inside the container this configuration is meant for.
+
+# Neither TE_IUT nor TE_TST1 is set, so rcfunix starts both agents
+# locally and no SSH is involved.
+export TE_IUT_TA_NAME="Agt_A"
+export TE_IUT_TST1=te_iut
+export TE_IUT_BUILD=local
+export TE_IUT_TA_TYPE=linux
+
+export TE_TST1_TA_NAME="Agt_B"
+export TE_TST1_IUT=te_tst
+export TE_TST1_BUILD=local
+export TE_TST1_TA_TYPE=linux
+
+# Both agents would listen on ${TE_RCF_PORT:-50000} otherwise.
+export TE_TST1_PORT=50001
+
+if ip link show "${TE_IUT_TST1}" >/dev/null 2>&1 ||
+   ip link add "${TE_IUT_TST1}" type veth peer name "${TE_TST1_IUT}" ; then
+    ip link set "${TE_IUT_TST1}" up
+    ip link set "${TE_TST1_IUT}" up
+else
+    echo "ERROR: cannot create the ${TE_IUT_TST1}/${TE_TST1_IUT} veth pair" >&2
+fi
