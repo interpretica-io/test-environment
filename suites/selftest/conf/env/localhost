@@ -4,5 +4,11 @@ export TE_IUT_TST1=lo
 export TE_IUT_BUILD=local
 export TE_IUT_TA_TYPE=linux
 
-# Agent 2 is not configured
-
+# The second agent is this very host again: TE_TST1 is left empty, so
+# rcfunix starts it locally just like the first one. Both would then
+# listen on ${TE_RCF_PORT:-50000}, hence the port of its own.
+export TE_TST1_TA_NAME="Agt_B"
+export TE_TST1_IUT=lo
+export TE_TST1_BUILD=local
+export TE_TST1_TA_TYPE=linux
+export TE_TST1_PORT=50001
