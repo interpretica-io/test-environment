@@ -66,7 +66,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN apt-get update && apt-get install -y --no-install-recommends \
         fio iputils-ping iptables iproute2 curl \
         nginx-light redis-server memcached libmemcached-tools \
-        unbound && \
+        unbound iperf iperf3 wrk && \
     rm -rf /var/lib/apt/lists/*
 
 #
