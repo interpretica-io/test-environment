@@ -1091,12 +1091,16 @@ core_pattern_set(const ta_conf_ctx *ctx, const char *val)
 #ifdef __linux__
 
     /*
-     * We do not want this node to be available if agent is not
-     * run under root. See bug 10419.
+     * We do not want this node to be available if the agent cannot manage
+     * core_pattern. That is the case when the agent does not run under root
+     * (EACCES), and also under a read-only /proc -- e.g. inside a container,
+     * where core_pattern is a non-namespaced knob the container is not allowed
+     * to write, so an O_RDWR open gives EROFS. In both cases report the node as
+     * absent rather than failing Configurator's synchronisation. See bug 10419.
      */
     if (try_open_file_rw("/proc/sys/kernel/core_pattern") < 0)
     {
-        if (errno == EACCES)
+        if (errno == EACCES || errno == EROFS)
             return TE_RC(TE_TA_UNIX, TE_ENOENT);
         else
             return TE_OS_RC(TE_TA_UNIX, errno);
@@ -1154,12 +1158,16 @@ core_pattern_get(const ta_conf_ctx *ctx, te_string *val)
 #ifdef __linux__
 
     /*
-     * We do not want this node to be available if agent is not
-     * run under root. See bug 10419.
+     * We do not want this node to be available if the agent cannot manage
+     * core_pattern. That is the case when the agent does not run under root
+     * (EACCES), and also under a read-only /proc -- e.g. inside a container,
+     * where core_pattern is a non-namespaced knob the container is not allowed
+     * to write, so an O_RDWR open gives EROFS. In both cases report the node as
+     * absent rather than failing Configurator's synchronisation. See bug 10419.
      */
     if (try_open_file_rw("/proc/sys/kernel/core_pattern") < 0)
     {
-        if (errno == EACCES)
+        if (errno == EACCES || errno == EROFS)
             return TE_RC(TE_TA_UNIX, TE_ENOENT);
         else
             return TE_OS_RC(TE_TA_UNIX, errno);
