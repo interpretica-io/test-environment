@@ -44,6 +44,16 @@
 #endif
 
 #if __has_attribute(format)
+/*
+ * GCC checks "printf" formats against the Microsoft C runtime on
+ * MinGW-w64, while TE gets the C99 printf() there.
+ */
+#ifdef __MINGW32__
+#define TE_PRINTF_ARCHETYPE gnu_printf
+#else
+#define TE_PRINTF_ARCHETYPE printf
+#endif
+
 /**
  * Declare that a function is similiar to @c printf, taking
  * a printf-style format string in its argument @p fmtarg_, and
@@ -53,7 +63,7 @@
  * @param va_      the number of the first variadic argument
  */
 #define TE_LIKE_PRINTF(fmtarg_, va_) \
-    __attribute__((format (printf, fmtarg_, va_)))
+    __attribute__((format (TE_PRINTF_ARCHETYPE, fmtarg_, va_)))
 
 /**
  * Declare that a function is similiar to @c vprintf, taking
@@ -61,7 +71,8 @@
  *
  * @param fmtarg_  the number of printf-style format string argument
  */
-#define TE_LIKE_VPRINTF(fmtarg_) __attribute__((format (printf, fmtarg_, 0)))
+#define TE_LIKE_VPRINTF(fmtarg_) \
+    __attribute__((format (TE_PRINTF_ARCHETYPE, fmtarg_, 0)))
 
 #else
 
