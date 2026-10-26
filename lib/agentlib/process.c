@@ -559,6 +559,7 @@ ta_kill_and_wait(pid_t pid, int sig, unsigned int timeout_s)
     return -2;
 }
 
+#ifndef _WIN32
 /**
  * Bring the child of a fork() into a sane state.
  *
@@ -580,7 +581,62 @@ ta_children_after_fork(void)
         LOG_PRINT("Cannot re-initialize sigchld sem after fork(): %s",
                   te_rc_err2str(rc));
 }
+#endif /* !_WIN32 */
 
+#ifdef _WIN32
+/** Interval between the checks for exited children, in milliseconds */
+#define TA_CHILDREN_REAP_INTERVAL_MS 200
+
+/**
+ * Collect the exited children into the list of dead ones, as the
+ * SIGCHLD handler does on POSIX systems.
+ */
+static void *
+ta_children_reaper(void *arg)
+{
+    UNUSED(arg);
+
+    for (;;)
+    {
+        ta_sigchld_handler();
+        /* te_msleep() logs every call */
+        Sleep(TA_CHILDREN_REAP_INTERVAL_MS);
+    }
+
+    return NULL;
+}
+
+/*
+ * Windows does not notify a process of the exit of its children, so a
+ * thread collects them instead of a SIGCHLD handler. Until then, the
+ * processes TE starts stay waitable.
+ */
+te_errno
+ta_process_mgmt_init(void)
+{
+    pthread_t tid;
+    te_errno rc;
+    int ret;
+
+    rc = te_sem_init(&sigchld_sem, 1);
+    if (rc != 0)
+    {
+        LOG_PRINT("Cannot initialize sigchld sem: %s", te_rc_err2str(rc));
+        return rc;
+    }
+
+    ret = pthread_create(&tid, NULL, ta_children_reaper, NULL);
+    if (ret != 0)
+    {
+        LOG_PRINT("Cannot start the thread collecting exited children: %s",
+                  strerror(ret));
+        return te_rc_os2te(ret);
+    }
+    pthread_detach(tid);
+
+    return 0;
+}
+#else
 te_errno
 ta_process_mgmt_init(void)
 {
@@ -609,6 +665,7 @@ ta_process_mgmt_init(void)
 
     return rc;
 }
+#endif /* !_WIN32 */
 
 typedef struct vfork_hook {
     SLIST_ENTRY(vfork_hook) next;    /**< next hook */

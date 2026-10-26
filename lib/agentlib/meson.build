@@ -3,7 +3,8 @@
 
 is_multi_build_library = true
 
-if not cc.has_function('pthread_atfork', dependencies: dep_threads)
+if not host_windows and not cc.has_function('pthread_atfork',
+                                           dependencies: dep_threads)
     error('pthread_atfork is not supported')
 endif
 
