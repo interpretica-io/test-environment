@@ -58,6 +58,14 @@ typedef struct asn_type asn_type;
  *      Codes of types, which specification contain array of namedValues
  *      (with types), have lower bit zero.
  */
+/*
+ * windows.h, which te_config.h includes on Windows, declares a BOOL type,
+ * while it is the name of a syntax here.
+ */
+#ifdef _WIN32
+#define BOOL ASN_SYNTAX_BOOL
+#endif
+
 typedef enum {
     SYNTAX_UNDEFINED = 0,  /**< Undefined syntax, used as error mark. */
     BOOL = 1,       /**< Boolean syntax          */
