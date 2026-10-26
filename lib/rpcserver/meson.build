@@ -186,7 +186,8 @@ endif
 #
 f = 'dlopen'
 have_dlopen = false
-if cc.has_function(f, args: te_cflags)
+# lib/win32compat provides it on Windows
+if host_windows or cc.has_function(f, args: te_cflags)
     have_dlopen = true
 else
     dep_dl = cc.find_library('dl', required: false)
@@ -378,7 +379,9 @@ deps += [ dep_rpcs ]
 #   in glibc; libtirpc can be used instead.
 #
 rpc_lib_found = false
-if not cc.has_function('xdr_bytes', args: te_cflags, dependencies: deps)
+# lib/rpcxdr brings its own XDR on Windows
+if host_windows
+elif not cc.has_function('xdr_bytes', args: te_cflags, dependencies: deps)
     dep_rpc = cc.find_library('rpc', required: false)
     if dep_rpc.found() and cc.has_function('xdr_bytes', args: te_cflags,
                                            dependencies: dep_rpc)
@@ -519,10 +522,16 @@ sources += files(
     'rcf_pch_mem.c',
     'rpc_server.c',
     'rpcs_conv.c',
-    'rpcs_msghdr.c',
     'tarpc_base.c',
-    'tarpc_imp.c',
 )
+
+# The calls are POSIX ones, the Windows agent implements its own
+if not host_windows
+    sources += files(
+        'rpcs_msghdr.c',
+        'tarpc_imp.c',
+    )
+endif
 
 te_libs += [
     'loggerta',
