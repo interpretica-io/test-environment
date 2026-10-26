@@ -31,6 +31,7 @@ tad_protocols = [
 
 # Common libraries
 te_common_libs = [
+    'win32compat',
     'logger_core',
     'tools',
     'conf_oid',
@@ -107,6 +108,11 @@ all_libs = te_common_libs + te_engine_libs + te_agent_libs
 
 libs = get_option('libs').split()
 
+# POSIX interfaces of a Windows host are needed by everything else
+if host_windows and not libs.contains('win32compat')
+    libs = [ 'win32compat' ] + libs
+endif
+
 # Process list of libraries to build in order to:
 #  - add external libraries to all_libs
 foreach l : libs
@@ -178,7 +184,8 @@ foreach l : all_libs
             build_lib_shared = true
             build_lib_static = false
         elif te_common_libs.contains(l)
-            build_lib_shared = true
+            # Test Engine does not run on Windows, only agents do
+            build_lib_shared = not host_windows
             build_lib_static = build_agents or build_agent_apps
         elif te_agent_libs.contains(l)
             build_lib_shared = false
@@ -212,8 +219,11 @@ foreach l : all_libs
         # Whether this library needs to be linked wholly
         link_whole = false
         # logger_core is required dependency for everything else
-        if l != 'logger_core'
+        if l != 'logger_core' and l != 'win32compat'
             te_libs += [ 'logger_core' ]
+        endif
+        if host_windows and l != 'win32compat'
+            te_libs += [ 'win32compat' ]
         endif
 
         lrname=l
@@ -298,6 +308,11 @@ foreach l : all_libs
                                              dependencies: deps_static)
                 endif
                 set_variable('dep_lib_static_' + libname, dep)
+                # Common libraries are only static on Windows, let the
+                # users of the shared ones get the static ones there
+                if te_common_libs.contains(l) and not build_lib_shared
+                    set_variable('dep_lib_' + libname, dep)
+                endif
             endif
             if build_lib_shared
                 deps_shared = deps

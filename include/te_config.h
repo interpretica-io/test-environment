@@ -28,6 +28,14 @@
 #undef __TE_CONFIG_INTERNAL_H__
 
 /*
+ * POSIX interfaces which a native Windows C library lacks. The legacy
+ * build by the Microsoft compiler (WINDOWS) has its own te_win.h.
+ */
+#if defined(_WIN32) && !defined(WINDOWS)
+#include "te_win32_posix.h"
+#endif
+
+/*
  * Undefine package parameters to allow including config.h
  * after te_config.h
  */

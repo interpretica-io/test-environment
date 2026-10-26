@@ -12,6 +12,29 @@ platform_include_dir = join_paths(platform_install_dir, 'include')
 platform_lib_dir = join_paths(platform_install_dir, 'lib')
 
 te_cflags = [ '-I' + platform_include_dir ] + get_option('cflags').split()
+
+# A native Windows (MinGW-w64) host has no POSIX layer. TE provides the
+# headers and functions it needs there in lib/win32compat, and the checks
+# below have to see them as well.
+host_windows = host_machine.system() == 'windows'
+if host_windows
+    te_cflags += [
+        '-I' + join_paths(meson.current_source_dir(),
+                          'lib', 'win32compat', 'include'),
+        # Windows 10 API: AF_UNIX sockets, IP Helper, WSAPoll()
+        '-D_WIN32_WINNT=0x0A00',
+        # Keep winsock.h and wingdi.h (it defines ERROR) out of windows.h
+        '-DWIN32_LEAN_AND_MEAN',
+        '-DNOGDI',
+        # C99 printf() formats such as %zu and %lld
+        '-D__USE_MINGW_ANSI_STDIO=1',
+        # localtime_r() and friends
+        '-D_POSIX_THREAD_SAFE_FUNCTIONS=200112L',
+        # Winsock takes socket option values as char *, not void *
+        '-Wno-error=incompatible-pointer-types',
+    ]
+endif
+
 te_ldflags = [ '-L' + platform_lib_dir ] + get_option('ldflags').split()
 
 add_project_arguments(te_cflags, language: 'c')
@@ -72,6 +95,13 @@ else
 endif
 
 cc = meson.get_compiler('c')
+
+dep_winsock = []
+if host_windows
+    foreach l : [ 'ws2_32', 'mswsock', 'iphlpapi' ]
+        dep_winsock += [ cc.find_library(l) ]
+    endforeach
+endif
 
 # Packages names (Debian/Ubuntu and Fedora/RHEL) for necessary dependencies
 deps_names_deb = {
