@@ -29,8 +29,14 @@ deps += [ dep_rpcs ]
 #   to record that they are available, not only that an extra library
 #   has been found.
 #
+# A native Windows C library has no XDR, TE provides its own one there
+compat_xdr = host_windows
+
 rpc_lib_found = false
-if cc.has_function('xdr_bytes', args: te_cflags, dependencies: deps)
+if compat_xdr
+    includes += include_directories('compat')
+    sources += files('compat/xdr.c')
+elif cc.has_function('xdr_bytes', args: te_cflags, dependencies: deps)
     rpc_lib_found = true
 else
     dep_rpc = cc.find_library('rpc', required: false)
@@ -52,20 +58,28 @@ else
     endif
 endif
 
-# These headers are present in corresponding dependencies, but not globally, so
-# it makes more sense to check for them with full dependency set
-if cc.has_header('rpc/types.h', dependencies: deps)
-    have = 'HAVE_RPC_TYPES_H'
-    conf.set(have, 1)
-    c_args += [ '-D' + have ]
-endif
-if cc.has_header('rpc/xdr.h', dependencies: deps)
-    have = 'HAVE_RPC_XDR_H'
-    conf.set(have, 1)
-    c_args += [ '-D' + have ]
-endif
+if compat_xdr
+    foreach have : [ 'HAVE_RPC_TYPES_H', 'HAVE_RPC_XDR_H' ]
+        conf.set(have, 1)
+        c_args += [ '-D' + have ]
+    endforeach
+    conf.set('x_int32_arg_t', 'int32_t')
+else
+    # These headers are present in corresponding dependencies, but not
+    # globally, so it makes more sense to check for them with full
+    # dependency set
+    if cc.has_header('rpc/types.h', dependencies: deps)
+        have = 'HAVE_RPC_TYPES_H'
+        conf.set(have, 1)
+        c_args += [ '-D' + have ]
+    endif
+    if cc.has_header('rpc/xdr.h', dependencies: deps)
+        have = 'HAVE_RPC_XDR_H'
+        conf.set(have, 1)
+        c_args += [ '-D' + have ]
+    endif
 
-rpc_headers = '''
+    rpc_headers = '''
 #if HAVE_RPC_TYPES_H
 #include <rpc/types.h>
 #endif
@@ -73,13 +87,14 @@ rpc_headers = '''
 #include <rpc/xdr.h>
 #endif
 '''
-if cc.has_member('struct xdr_ops', 'x_putint32', args: c_args,
-                 prefix: rpc_headers, dependencies: deps)
-    conf.set('x_int32_arg_t', 'int32_t')
-else
-    conf.set('x_putint32', 'x_putlong')
-    conf.set('x_getint32', 'x_getlong')
-    conf.set('x_int32_arg_t', 'long')
+    if cc.has_member('struct xdr_ops', 'x_putint32', args: c_args,
+                     prefix: rpc_headers, dependencies: deps)
+        conf.set('x_int32_arg_t', 'int32_t')
+    else
+        conf.set('x_putint32', 'x_putlong')
+        conf.set('x_getint32', 'x_getlong')
+        conf.set('x_int32_arg_t', 'long')
+    endif
 endif
 
 if rpc_lib_found
