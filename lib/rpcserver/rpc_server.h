@@ -351,6 +351,13 @@ shut_how_rpc2h(rpc_shut_how how)
 extern bool tarpc_dynamic_library_loaded(void);
 
 /**
+ * Get the name of the dynamic library set by tarpc_setlibname().
+ *
+ * @return Library name, or @c NULL if none is set.
+ */
+extern const char *tarpc_dynamic_library_name(void);
+
+/**
  * Sleep the pending timeout and return error in case
  * dynamic library is not loaded.
  *

@@ -520,6 +520,7 @@ sources += files(
     'rpc_server.c',
     'rpcs_conv.c',
     'rpcs_msghdr.c',
+    'tarpc_base.c',
     'tarpc_imp.c',
 )
 
