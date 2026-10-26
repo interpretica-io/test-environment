@@ -106,6 +106,15 @@ option('agent-unix-symtbl', type: 'boolean', value: true,
 option('agent-unix-libs', type: 'array', value: [],
        description: 'Extra libraries to be linked to Unix agent')
 
+option('agent-win32-name', type: 'string', value: '',
+       description: 'Windows Test Agent name')
+option('agent-win32-platform', type: 'string', value: '',
+       description: 'Windows Test Agent platform')
+option('agent-win32-symtbl', type: 'boolean', value: true,
+       description: 'Generate and include symbol table in Windows agent')
+option('agent-win32-libs', type: 'array', value: [],
+       description: 'Extra libraries to be linked to Windows agent')
+
 option('agent-powerctl-name', type: 'string', value: '',
        description: 'Power-ctl Test Agent name')
 option('agent-powerctl-platform', type: 'string', value: '',
