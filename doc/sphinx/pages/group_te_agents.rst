@@ -117,9 +117,12 @@ Functions declared in ``lib/rcfpch/rcf_ch_api.h`` should be exported by a Test A
 Types of supported Test Agents
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The Unix Test Agent is the agent used in practice:
+The Unix Test Agent is the agent used in practice. The Windows one runs
+the core RCF commands and the network configuration of a Windows host:
 
-* :ref:`Unix Test Agent <doxid-group__te__agents__unix>`.
+* :ref:`Unix Test Agent <doxid-group__te__agents__unix>`;
+
+* :ref:`Windows Test Agent <doxid-group__te__agents__win32>`.
 
 
 .. _doxid-group__te__agents_1te_agt_extending:
