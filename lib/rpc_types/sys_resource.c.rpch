@@ -46,6 +46,9 @@ rlimit_resource_rpc2str(rpc_rlimit_resource resource)
 #ifndef RLIMIT_NLIMITS
 #ifdef RLIM_NLIMITS
 #define RLIMIT_NLIMITS  RLIM_NLIMITS
+#elif !defined(HAVE_SYS_RESOURCE_H)
+/* No resource limits at all, e.g. on Windows */
+#define RLIMIT_NLIMITS  0
 #else
 #error RLIMIT_NLIMITS cannot be defined
 #endif

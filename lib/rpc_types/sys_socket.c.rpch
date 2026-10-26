@@ -1518,11 +1518,15 @@ cmsg_type_h2rpc(int level, int type)
         case SOL_SOCKET:
             switch (type)
             {
+#ifdef SCM_RIGHTS
                 case SCM_RIGHTS:
                     return RPC_SCM_RIGHTS;
+#endif
 
+#ifdef SCM_TIMESTAMP
                 case SCM_TIMESTAMP:
                     return RPC_SO_TIMESTAMP;
+#endif
 
 #ifdef SCM_TIMESTAMPNS
                 case SCM_TIMESTAMPNS:

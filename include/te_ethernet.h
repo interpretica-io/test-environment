@@ -52,7 +52,7 @@
 #include <sys/ethernet.h>
 #endif
 
-#ifdef __CYGWIN__
+#if defined(__CYGWIN__) || defined(_WIN32)
 #define ETHER_ADDR_LEN 6
 #define ETHERTYPE_IP   0x0800
 #define ETHERTYPE_ARP  0x0806
