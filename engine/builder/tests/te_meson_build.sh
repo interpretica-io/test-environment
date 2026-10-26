@@ -281,6 +281,24 @@ function agent_options() {
 }
 
 #######################################
+# Report the meson options for a Windows agent with two extra libraries.
+#
+# Runs under with_builder(), which provides process_agent_win32().
+# Globals:
+#   TEST_PLATFORM
+# Outputs:
+#   Writes the meson arguments to stdout.
+#######################################
+win32_agent_options() {
+    local meson_args=
+
+    TE_BS_TA_win_ta_PLATFORM="${TEST_PLATFORM}"
+    TE_BS_TA_win_ta_LIBS="tapi_one tapi_two"
+    process_agent_win32 win_ta TE_BS_TA_win_ta_
+    printf '%s\n' "${meson_args}"
+}
+
+#######################################
 # Report the host system of the cross file for a MinGW-w64 platform.
 #
 # A stand-in compiler reports the triplet, so no MinGW-w64 toolchain is
@@ -446,6 +464,11 @@ EOF
     want="${want}|ta_ext_selftest:tapi_ext_selftest"
     want="${want},ta_ext_selftest:ta_ext_selftest"
     expect_eq "the agent options" "$(with_builder agent_options)" "${want}"
+
+    step "The options of a Windows agent name it and its libraries"
+    expect_eq "the Windows agent options" \
+              "$(with_builder win32_agent_options)" \
+              " -Dagent-win32-name=win_ta -Dagent-win32-platform=${TEST_PLATFORM} -Dagent-win32-libs=\"tapi_one,tapi_two\""
 
     step "A MinGW-w64 platform is a Windows host for meson"
     expect_eq "the cross file system" "$(with_builder mingw_cross_system)" \
