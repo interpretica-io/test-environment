@@ -665,6 +665,12 @@ generate_config_file() {
     local cpu_family="$(cut -d'-' -f1 <<<"$dumpmachine")"
     local system="$(echo $dumpmachine | rev | cut -d'-' -f2 | rev)"
 
+    # MinGW-w64 triplets end with the runtime, not the system:
+    # x86_64-w64-mingw32 is a Windows host for meson
+    case "${dumpmachine}" in
+        *-mingw32*) system=windows ;;
+    esac
+
     test -z "$cpp" && cpp="${host}-cpp"
     test -z "$ld" && ld="${host}-ld"
     test -z "$ar" && ar="${host}-ar"

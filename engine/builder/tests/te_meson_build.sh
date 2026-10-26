@@ -281,6 +281,31 @@ function agent_options() {
 }
 
 #######################################
+# Report the host system of the cross file for a MinGW-w64 platform.
+#
+# A stand-in compiler reports the triplet, so no MinGW-w64 toolchain is
+# needed. Runs under with_builder(), which provides
+# generate_config_file().
+# Globals:
+#   TE_BUILD
+#   WORK
+# Outputs:
+#   Writes the 'system' line of the cross file to stdout.
+#######################################
+mingw_cross_system() {
+    local cc="${WORK}/mingw-gcc"
+
+    printf '#!/bin/sh\necho x86_64-w64-mingw32\n' >"${cc}"
+    chmod +x "${cc}"
+    mkdir -p "${TE_BUILD}"
+
+    generate_config_file winplat "--host=x86_64-w64-mingw32 CC=${cc}"
+    # generate_config_file() sets the variable by eval
+    # shellcheck disable=SC2154
+    grep '^system' "${TE_BS_MESON_winplat_CROSS_FILE}"
+}
+
+#######################################
 # Run every scenario and report the outcome.
 #
 # The configurations are heredocs, so their bodies and terminators
@@ -421,6 +446,10 @@ EOF
     want="${want}|ta_ext_selftest:tapi_ext_selftest"
     want="${want},ta_ext_selftest:ta_ext_selftest"
     expect_eq "the agent options" "$(with_builder agent_options)" "${want}"
+
+    step "A MinGW-w64 platform is a Windows host for meson"
+    expect_eq "the cross file system" "$(with_builder mingw_cross_system)" \
+              "system = 'windows'"
 
     step "A name that would break the option encoding is refused"
     for bad in "with:colon" "with,comma" ; do
