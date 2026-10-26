@@ -410,9 +410,11 @@ te_file_read_string(te_string *dest, bool binary,
         goto out;
     }
 
+#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
     /* Some filesystems, e.g. sysfs, do not report file size correctly. */
     if (st.st_blocks == 0 && st.st_size > 0)
         st.st_size = 0;
+#endif
 
     if (maxsize != 0 && st.st_size > maxsize)
     {
