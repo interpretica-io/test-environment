@@ -654,6 +654,7 @@ generate_config_file() {
     local ar=
     local as=
     local strip=
+    local nm=
     local pkgconfig=
     local others=
     for parm in ${parms_var} ; do
@@ -672,6 +673,8 @@ generate_config_file() {
                 as="${parm#AS=}" ;;
             STRIP=*)
                 strip="${parm#STRIP=}" ;;
+            NM=*)
+                nm="${parm#NM=}" ;;
             PKG_CONFIG=*)
                 pkgconfig="${parm#PKG_CONFIG=}" ;;
             *)
@@ -682,7 +685,7 @@ generate_config_file() {
         warning "Unsupported platform parameters:${others}"
     fi
 
-    if test -z "${host}${cc}${cpp}${ld}${ar}${as}${strip}${pkg_config}" ; then
+    if test -z "${host}${cc}${cpp}${ld}${ar}${as}${strip}${nm}${pkg_config}" ; then
         return
     fi
 
@@ -694,6 +697,7 @@ generate_config_file() {
         test -n "$ar" && echo "ar = '${ar}'" >> $conffile
         test -n "$as" && echo "as = '${as}'" >> $conffile
         test -n "$strip" && echo "strip = '${strip}'" >> $conffile
+        test -n "$nm" && echo "nm = '${nm}'" >> $conffile
         test -n "$pkgconfig" && echo "pkgconfig = '${pkgconfig}'" >> $conffile
         eval TE_BS_MESON_${p}_NATIVE_FILE=\"\${conffile}\"
         return
@@ -715,6 +719,7 @@ generate_config_file() {
     test -z "$ar" && ar="${host}-ar"
     test -z "$as" && as="${host}-as"
     test -z "$strip" && strip="${host}-strip"
+    test -z "$nm" && nm="${host}-nm"
     test -z "$pkgconfig" && pkgconfig="${host}-pkg-config"
 
     cat >$conffile <<-EOF
@@ -725,6 +730,7 @@ generate_config_file() {
 	ar = '${ar}'
 	as = '${as}'
 	strip = '${strip}'
+	nm = '${nm}'
 	pkgconfig = '${pkgconfig}'
 
 	[host_machine]

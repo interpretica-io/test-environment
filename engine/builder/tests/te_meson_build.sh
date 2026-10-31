@@ -324,6 +324,32 @@ mingw_cross_system() {
 }
 
 #######################################
+# Report the host CPU, system and nm of the cross file for a platform
+# of llvm-mingw.
+#
+# clang of llvm-mingw reports aarch64-w64-windows-gnu, not the triplet
+# of the platform. Runs under with_builder() as mingw_cross_system().
+# Globals:
+#   TE_BUILD
+#   WORK
+# Outputs:
+#   Writes the 'cpu_family', 'system' and 'nm' lines of the cross file
+#   to stdout, joined by commas.
+#######################################
+llvm_mingw_cross_file() {
+    local cc="${WORK}/llvm-mingw-clang"
+
+    printf '#!/bin/sh\necho aarch64-w64-windows-gnu\n' >"${cc}"
+    chmod +x "${cc}"
+    mkdir -p "${TE_BUILD}"
+
+    generate_config_file armplat "--host=aarch64-w64-mingw32 CC=${cc}"
+    # shellcheck disable=SC2154
+    grep -E '^(cpu_family|system|nm) ' "${TE_BS_MESON_armplat_CROSS_FILE}" |
+        sort | paste -sd, -
+}
+
+#######################################
 # Run every scenario and report the outcome.
 #
 # The configurations are heredocs, so their bodies and terminators
@@ -473,6 +499,10 @@ EOF
     step "A MinGW-w64 platform is a Windows host for meson"
     expect_eq "the cross file system" "$(with_builder mingw_cross_system)" \
               "system = 'windows'"
+
+    step "A platform of llvm-mingw takes its nm from the host triplet"
+    expect_eq "the cross file" "$(with_builder llvm_mingw_cross_file)" \
+              "cpu_family = 'aarch64',nm = 'aarch64-w64-mingw32-nm',system = 'windows'"
 
     step "A name that would break the option encoding is refused"
     for bad in "with:colon" "with,comma" ; do
