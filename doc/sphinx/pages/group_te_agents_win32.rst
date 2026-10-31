@@ -159,11 +159,13 @@ The agent implements these RPC calls, the others fail with
 ``TE_ERPCNOTSUPP``:
 
 * ``getpid``, ``pthread_self``, ``getenv``, ``setenv``, ``unsetenv``,
-  ``gethostname``;
+  ``gethostname``, ``uname``, ``gettimeofday``, ``clock_gettime``;
 
 * ``socket``, ``close``, ``closesocket``, ``bind``, ``connect``,
   ``listen``, ``accept``, ``send``, ``sendto``, ``recv``, ``recvfrom``,
-  ``shutdown``, ``getsockname``, ``getpeername``;
+  ``shutdown``, ``getsockname``, ``getpeername``, ``socketpair``,
+  ``dup``, ``dup2``, ``getaddrinfo``, ``freeaddrinfo``,
+  ``if_nametoindex``, ``if_indextoname``;
 
 * ``setsockopt`` and ``getsockopt`` with integer, linger and timeval
   values;
@@ -176,13 +178,31 @@ The agent implements these RPC calls, the others fail with
   with ``F_GETFD``, ``F_SETFD``, ``F_GETFL`` and ``F_SETFL``;
 
 * ``open``, ``lseek``, ``fsync``, ``access``, ``unlink``, ``mkdir``,
-  ``rmdir``;
+  ``rmdir``, ``rename``, ``ftruncate``, ``pread``, ``pwrite``,
+  ``te_fstat``, ``te_fstat64``;
+
+* ``simple_sender``, ``simple_receiver``, ``overfill_buffers``;
 
 * ``te_shell_cmd``, ``system``, ``kill``, ``waitpid``, ``ta_kill_death``,
   ``ta_kill_and_wait``;
 
 * ``malloc``, ``free``, ``memcmp``, ``set_buf``, ``get_buf``,
   ``set_buf_pattern``;
+
+* the calls of Winsock: ``wsa_startup``, ``wsa_cleanup``, ``wsa_socket``,
+  ``duplicate_socket``, ``wsa_address_to_string``,
+  ``wsa_string_to_address``, ``get_current_process_id``,
+  ``get_sys_info``;
+
+* event objects: ``create_event``, ``close_event``, ``set_event``,
+  ``reset_event``, ``event_select``, ``enum_network_events``,
+  ``wait_for_multiple_events``;
+
+* overlapped I/O: ``create_overlapped``, ``delete_overlapped``,
+  ``wsa_send``, ``wsa_send_to``, ``wsa_recv``, ``wsa_recv_from``,
+  ``wsa_get_overlapped_result``, ``has_overlapped_io_completed``,
+  ``cancel_io``, ``completion_callback``, and the extension functions
+  ``connect_ex``, ``accept_ex``, ``get_accept_addr``, ``disconnect_ex``;
 
 * the calls of lib/rpcserver: ``setlibname``, ``rpc_find_func``,
   ``get_sizeof``, ``get_addrof``, ``get_var``, ``set_var``,
@@ -198,6 +218,19 @@ Files are opened as binary ones. Windows tells only whether the owner
 may write a file, so ``open`` takes nothing else of the mode, and
 ``access`` takes ``X_OK`` as granted. ``F_GETFL`` cannot tell whether
 a socket is non-blocking.
+
+Winsock has no ``socketpair()``: the agent connects two sockets of the
+loopback interface, of AF_INET for ``PF_UNIX`` too. ``dup`` of a socket
+makes another socket of the same connection by ``WSADuplicateSocket()``,
+and ``dup2`` takes files only. ``rename`` replaces an existing file, as
+POSIX does. ``gettimeofday`` reports no time zone.
+
+An overlapped operation in progress fails with ``RPC_E_IO_PENDING``, and
+``wsa_get_overlapped_result`` of an incomplete one fails with
+``RPC_E_IO_INCOMPLETE``. The buffers of the operation stay with the
+overlapped object until ``wsa_get_overlapped_result`` returns them. The
+completion routines are ``default_completion_callback``, whose calls
+``completion_callback`` reports, and ``empty_completion_callback``.
 
 
 
@@ -243,4 +276,6 @@ Source organization
 
 * agents/win32/conf.c - the configuration tree;
 
-* agents/win32/tarpc.c - the RPC calls.
+* agents/win32/tarpc.c - the RPC calls of POSIX;
+
+* agents/win32/tarpc_wsa.c - the RPC calls of Winsock which POSIX lacks.
