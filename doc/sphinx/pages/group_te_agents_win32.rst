@@ -64,6 +64,26 @@ The toolchain is the ``mingw-w64`` package on Debian and Ubuntu, and
 the ``mingw-w64`` formula of Homebrew on macOS. MSYS2 provides the same
 toolchain on Windows itself, in its UCRT64 environment.
 
+GCC of MinGW-w64 builds for x86 only. An agent for Windows on ARM64 is
+built by `llvm-mingw <https://github.com/mstorsjo/llvm-mingw>`_, which
+names its tools after the triplet as well. Put its ``bin`` directory into
+``PATH`` and take the triplet for ARM64:
+
+.. ref-code-block:: none
+
+	TE_PLATFORM([winarm], [--host=aarch64-w64-mingw32], [], [], [],
+	            [logger_core tools conf_oid asn ndn rpcxdr rpc_types \
+	             comm_net_agent loggerta rpctransport agentlib \
+	             rpcserver rcfpch tad])
+
+	TE_LIB_PARMS([tad], [winarm], [], [--without-tad])
+
+	TE_TA_TYPE([winarm], [winarm], [win32], [], [], [], [], [])
+
+The Builder reads the symbol table of the agent with ``nm`` of the
+platform, ``<triplet>-nm`` unless ``NM=`` of the platform parameters
+names another one.
+
 TE also needs ``rpcgen`` of glibc on the build host: the ``rpcsvc-proto``
 package of Linux distributions and of Homebrew.
 
