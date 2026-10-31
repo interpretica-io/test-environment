@@ -10,6 +10,7 @@
 
 #include "te_config.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <ctype.h>
 #ifdef HAVE_SYS_TYPES_H
@@ -179,6 +180,23 @@ rpc_gethostbyaddr(rcf_rpc_server *rpcs,
 }
 
 /**
+ * Addresses of getaddrinfo() with the pointer to them on the RPC server.
+ * The list a test gets is @p ai.
+ */
+typedef struct addrinfo_list {
+    tarpc_ptr       mem_ptr;    /**< Addresses on the RPC server */
+    struct addrinfo ai[];       /**< Addresses on the engine */
+} addrinfo_list;
+
+/** Get the list of addresses which getaddrinfo() returned */
+static addrinfo_list *
+addrinfo_list_of(struct addrinfo *res)
+{
+    return (addrinfo_list *)((uint8_t *)res -
+                             offsetof(addrinfo_list, ai));
+}
+
+/**
  * Convert RPC addrinfo to the host native one.
  *
  * @param rpc_ai        RPC addrinfo structure
@@ -190,13 +208,21 @@ rpc_gethostbyaddr(rcf_rpc_server *rpcs,
 static int
 ai_rpc2h(struct tarpc_ai *ai_rpc, struct addrinfo *ai)
 {
+    struct sockaddr *addr;
+
     ai->ai_flags = ai_flags_rpc2h(ai_rpc->flags);
     ai->ai_family = domain_rpc2h(ai_rpc->family);
     ai->ai_socktype = socktype_rpc2h(ai_rpc->socktype);
     ai->ai_protocol = proto_rpc2h(ai_rpc->protocol);
     ai->ai_addrlen = ai_rpc->addrlen + SA_COMMON_LEN;
 
-    sockaddr_rpc2h(&ai_rpc->addr, NULL, 0, &ai->ai_addr, NULL);
+    addr = TE_ALLOC(sizeof(struct sockaddr_storage));
+    if (sockaddr_rpc2h(&ai_rpc->addr, addr, sizeof(struct sockaddr_storage),
+                       &ai->ai_addr, NULL) != 0 || ai->ai_addr == NULL)
+    {
+        free(addr);
+        ai->ai_addr = NULL;
+    }
 
     if (ai_rpc->canonname.canonname_val != NULL)
     {
@@ -218,11 +244,12 @@ rpc_getaddrinfo(rcf_rpc_server *rpcs,
     tarpc_getaddrinfo_in  in;
     tarpc_getaddrinfo_out out;
 
-    struct addrinfo *list = NULL;
+    addrinfo_list   *list = NULL;
     struct tarpc_ai  rpc_hints;
 
     memset(&in, 0, sizeof(in));
     memset(&out, 0, sizeof(out));
+    memset(&rpc_hints, 0, sizeof(rpc_hints));
 
     if (rpcs == NULL)
     {
@@ -230,15 +257,19 @@ rpc_getaddrinfo(rcf_rpc_server *rpcs,
         RETVAL_INT(getaddrinfo, -1);
     }
 
+    /*
+     * xdr_char() of libtirpc writes each character back when it encodes,
+     * so the strings are copied: a caller may pass constant ones.
+     */
     if (node != NULL)
     {
-        in.node.node_val = (char *)node;
+        in.node.node_val = TE_STRDUP(node);
         in.node.node_len = strlen(node) + 1;
     }
 
     if (service != NULL)
     {
-        in.service.service_val = (char *)service;
+        in.service.service_val = TE_STRDUP(service);
         in.service.service_len = strlen(service) + 1;
     }
 
@@ -254,7 +285,8 @@ rpc_getaddrinfo(rcf_rpc_server *rpcs,
 
         if (hints->ai_canonname != NULL)
         {
-            rpc_hints.canonname.canonname_val = hints->ai_canonname;
+            rpc_hints.canonname.canonname_val =
+                TE_STRDUP(hints->ai_canonname);
             rpc_hints.canonname.canonname_len =
                 strlen(hints->ai_canonname) + 1;
         }
@@ -265,31 +297,35 @@ rpc_getaddrinfo(rcf_rpc_server *rpcs,
 
     rcf_rpc_call(rpcs, "getaddrinfo", &in, &out);
 
+    free(in.node.node_val);
+    free(in.service.service_val);
+    free(rpc_hints.canonname.canonname_val);
+
     if (RPC_IS_CALL_OK(rpcs) && out.res.res_val != NULL)
     {
         int i;
 
-        list = TE_ALLOC(out.res.res_len * sizeof(*list) + sizeof(int));
-        *(int *)list = out.mem_ptr;
-        list = (struct addrinfo *)((int *)list + 1);
+        list = TE_ALLOC(sizeof(*list) +
+                        out.res.res_len * sizeof(list->ai[0]));
+        list->mem_ptr = out.mem_ptr;
 
         for (i = 0; i < (int)out.res.res_len; i++)
         {
-            if (ai_rpc2h(out.res.res_val, list + i) < 0)
+            if (ai_rpc2h(&out.res.res_val[i], &list->ai[i]) < 0)
             {
                 for (i--; i >= 0; i--)
                 {
-                    free(list[i].ai_addr);
-                    free(list[i].ai_canonname);
+                    free(list->ai[i].ai_addr);
+                    free(list->ai[i].ai_canonname);
                 }
-                free((int *)list - 1);
+                free(list);
                 rpcs->_errno = TE_RC(TE_RCF, TE_ENOMEM);
                 RETVAL_INT(getaddrinfo, -1);
             }
-            list[i].ai_next = (i == (int)out.res.res_len - 1) ?
-                                  NULL : list + i + 1;
+            list->ai[i].ai_next = (i == (int)out.res.res_len - 1) ?
+                                      NULL : &list->ai[i + 1];
         }
-        *res = list;
+        *res = list->ai;
     }
 
     CHECK_RETVAL_VAR_IS_ZERO_OR_MINUS_ONE(getaddrinfo, out.retval);
@@ -317,13 +353,23 @@ rpc_freeaddrinfo(rcf_rpc_server *rpcs,
     rpcs->op = RCF_RPC_CALL_WAIT;
 
     if (res != NULL)
-        in.mem_ptr = *((int *)res - 1);
+        in.mem_ptr = addrinfo_list_of(res)->mem_ptr;
 
     rcf_rpc_call(rpcs, "freeaddrinfo",  &in, &out);
 
     TAPI_RPC_LOG(rpcs, freeaddrinfo, "%p", "", res);
 
-    free((int *)res - 1);
+    if (res != NULL)
+    {
+        struct addrinfo *ai;
+
+        for (ai = res; ai != NULL; ai = ai->ai_next)
+        {
+            free(ai->ai_addr);
+            free(ai->ai_canonname);
+        }
+        free(addrinfo_list_of(res));
+    }
 
     RETVAL_VOID(freeaddrinfo);
 }
