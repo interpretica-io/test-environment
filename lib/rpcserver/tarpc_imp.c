@@ -964,9 +964,15 @@ recvfrom_rpc_handler(int fd, void *buf, size_t len, size_t rlen,
     TARPC_FIND_FUNC_RETURN(lib_flags, func_name, &recvfrom_func);
 
     if (chk_func)
-        return recvfrom_func(fd, buf, len, rlen, flags, addr, addrlen);
+        return TE_FUNC_CAST(ssize_t (*)(int, void *, size_t, size_t, int,
+                                        struct sockaddr *, socklen_t *),
+                            recvfrom_func)(fd, buf, len, rlen, flags,
+                                           addr, addrlen);
     else
-        return recvfrom_func(fd, buf, len, flags, addr, addrlen);
+        return TE_FUNC_CAST(ssize_t (*)(int, void *, size_t, int,
+                                        struct sockaddr *, socklen_t *),
+                            recvfrom_func)(fd, buf, len, flags,
+                                           addr, addrlen);
 }
 
 TARPC_FUNC_STANDALONE(recvfrom,
@@ -1058,9 +1064,11 @@ recv_rpc_handler(int fd, void *buf, size_t len, size_t rlen,
     TARPC_FIND_FUNC_RETURN(lib_flags, func_name, &recv_func);
 
     if (chk_func)
-        return recv_func(fd, buf, len, rlen, flags);
+        return TE_FUNC_CAST(ssize_t (*)(int, void *, size_t, size_t, int),
+                            recv_func)(fd, buf, len, rlen, flags);
     else
-        return recv_func(fd, buf, len, flags);
+        return TE_FUNC_CAST(ssize_t (*)(int, void *, size_t, int),
+                            recv_func)(fd, buf, len, flags);
 }
 
 TARPC_FUNC_STANDALONE(recv,
@@ -1523,9 +1531,11 @@ read_rpc_handler(int fd, void *buf, size_t len, size_t rlen,
     TARPC_FIND_FUNC_RETURN(lib_flags, func_name, &read_func);
 
     if (chk_func)
-        return read_func(fd, buf, len, rlen);
+        return TE_FUNC_CAST(ssize_t (*)(int, void *, size_t, size_t),
+                            read_func)(fd, buf, len, rlen);
     else
-        return read_func(fd, buf, len);
+        return TE_FUNC_CAST(ssize_t (*)(int, void *, size_t),
+                            read_func)(fd, buf, len);
 }
 
 TARPC_FUNC_STANDALONE(read,
@@ -1570,9 +1580,11 @@ pread_rpc_handler(int fd, void *buf, size_t len, off_t offset, size_t rlen,
     TARPC_FIND_FUNC_RETURN(lib_flags, func_name, &pread_func);
 
     if (chk_func)
-        return pread_func(fd, buf, len, offset, rlen);
+        return TE_FUNC_CAST(ssize_t (*)(int, void *, size_t, off_t, size_t),
+                            pread_func)(fd, buf, len, offset, rlen);
     else
-        return pread_func(fd, buf, len, offset);
+        return TE_FUNC_CAST(ssize_t (*)(int, void *, size_t, off_t),
+                            pread_func)(fd, buf, len, offset);
 }
 
 TARPC_FUNC_STANDALONE(pread,
@@ -5113,9 +5125,11 @@ poll_rpc_handler(struct pollfd *fds, unsigned int nfds,
     TARPC_FIND_FUNC_RETURN(lib_flags, func_name, (api_func *)&poll_func);
 
     if (chk_func)
-        return poll_func(fds, nfds, timeout, fdslen);
+        return TE_FUNC_CAST(int (*)(struct pollfd *, nfds_t, int, size_t),
+                            poll_func)(fds, nfds, timeout, fdslen);
     else
-        return poll_func(fds, nfds, timeout);
+        return TE_FUNC_CAST(int (*)(struct pollfd *, nfds_t, int),
+                            poll_func)(fds, nfds, timeout);
 }
 
 TARPC_FUNC_STANDALONE(poll,
@@ -5197,9 +5211,15 @@ ppoll_rpc_handler(struct pollfd *fds, unsigned int nfds,
     TARPC_FIND_FUNC_RETURN(lib_flags, func_name, (api_func *)&ppoll_func);
 
     if (chk_func)
-        return ppoll_func(fds, nfds, ts, sigmask, fdslen);
+        return TE_FUNC_CAST(int (*)(struct pollfd *, nfds_t,
+                                    const struct timespec *,
+                                    const sigset_t *, size_t),
+                            ppoll_func)(fds, nfds, ts, sigmask, fdslen);
     else
-        return ppoll_func(fds, nfds, ts, sigmask);
+        return TE_FUNC_CAST(int (*)(struct pollfd *, nfds_t,
+                                    const struct timespec *,
+                                    const sigset_t *),
+                            ppoll_func)(fds, nfds, ts, sigmask);
 }
 
 TARPC_FUNC_STANDALONE(ppoll,
