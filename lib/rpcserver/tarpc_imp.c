@@ -2557,7 +2557,8 @@ do_fd_isset(tarpc_do_fd_isset_in *in,
             tarpc_do_fd_isset_out *out)
 {
     RPC_PCH_MEM_WITH_NAMESPACE(ns, RPC_TYPE_NS_FD_SET, {
-        out->retval = FD_ISSET(in->fd, IN_FDSET_NS(ns));
+        /* Darwin and the BSDs return the bit of the descriptor */
+        out->retval = FD_ISSET(in->fd, IN_FDSET_NS(ns)) ? 1 : 0;
     });
 }
 
