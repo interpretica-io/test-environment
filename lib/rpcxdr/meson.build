@@ -217,6 +217,8 @@ if host_windows
     # The RPC table refers to the weak stubs. GNU ld for PE resolves such
     # a reference only within the object which defines the stub, up to
     # 2.42 at least, so the table and the stubs are one source there.
+    # The reference to a stub the agent overrides is still wrong, see
+    # rpc_win32_func() in lib/rpcserver/rpc_server.c.
     #
     rpc_tbl_stub = custom_target('gen-tarpc-rpctbl-stub',
                                  input: [ rpc_stub, rpc_tbl ],

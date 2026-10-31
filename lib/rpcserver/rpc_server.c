@@ -16,6 +16,7 @@
 #include "te_errno.h"
 #include "te_sleep.h"
 #include "te_alloc.h"
+#include "te_str.h"
 
 /* See description in rpc_server.h */
 int
@@ -660,6 +661,34 @@ rpcserver_plugin_disable(void)
 #endif /* ENABLE_RPC_PLUGINS */
 
 
+#ifdef _WIN32
+/**
+ * Find the implementation of an RPC on Windows.
+ *
+ * The RPC table refers to weak stubs, which the agent overrides with
+ * its implementations. GNU ld for PE computes such a reference from the
+ * object which defines the stub wrongly when another object overrides
+ * it, so the table points into the overriding object at the offset of
+ * the stub. The symbol table of the agent has the right address.
+ *
+ * @param name      RPC name
+ * @param dflt      Function from the RPC table
+ *
+ * @return Function to call.
+ */
+static rpc_func
+rpc_win32_func(const char *name, rpc_func dflt)
+{
+    char    sym[RCF_RPC_MAX_NAME + sizeof("__1_svc")];
+    void   *addr;
+
+    TE_SPRINTF(sym, "_%s_1_svc", name);
+    addr = rcf_ch_symbol_addr(sym, true);
+
+    return addr != NULL ? (rpc_func)addr : dflt;
+}
+#endif
+
 #ifdef HAVE_SIGNAL_H
 static void
 sig_handler(int s)
@@ -815,7 +844,11 @@ rcf_pch_rpc_server(const char *name)
 
         out = TE_ALLOC(info->out_len);
 
+#ifdef _WIN32
+        result = rpc_win32_func(rpc_name, info->rpc)(in, out, &pseudo_req);
+#else
         result = (info->rpc)(in, out, &pseudo_req);
+#endif
 
     result: /* Send an answer */
 
