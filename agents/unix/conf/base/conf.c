@@ -404,11 +404,13 @@ static te_errno ip6_fw_set(const ta_conf_ctx *ctx, bool val);
 static te_errno switchdev_name_get(const ta_conf_ctx *ctx, te_string *val);
 static te_errno switchdev_name_list(const ta_conf_ctx *ctx, te_vec *names);
 
+#ifdef __linux__
 static te_errno rp_filter_all_get(const ta_conf_ctx *ctx, te_string *val);
 static te_errno rp_filter_all_set(const ta_conf_ctx *ctx, const char *val);
 
 static te_errno arp_ignore_all_get(const ta_conf_ctx *ctx, te_string *val);
 static te_errno arp_ignore_all_set(const ta_conf_ctx *ctx, const char *val);
+#endif /* __linux__ */
 
 static te_errno agent_platform_get(const ta_conf_ctx *ctx, te_string *val);
 
@@ -448,11 +450,13 @@ static const ta_conf_node *const node_lib_bin_dir =
 static const ta_conf_node *const node_dns =
     TA_CONF_RO_STR("dns", nameserver_get);
 
+#ifdef __linux__
 static const ta_conf_node *const node_rp_filter_all =
     TA_CONF_RW_STR("rp_filter_all", rp_filter_all_get, rp_filter_all_set);
 
 static const ta_conf_node *const node_arp_ignore_all =
     TA_CONF_RW_STR("arp_ignore_all", arp_ignore_all_get, arp_ignore_all_set);
+#endif /* __linux__ */
 
 static const ta_conf_node *const node_switchdev_name =
     TA_CONF_RO_COLL("switchdev_name", switchdev_name_get,
@@ -645,10 +649,13 @@ ta_unix_conf_base_init(void)
         return rc;
     if ((rc = ta_conf_register("/agent", node_dns)) != 0)
         return rc;
+#ifdef __linux__
+    /* These are the variables of Linux in /proc/sys/net/ipv4/conf */
     if ((rc = ta_conf_register("/agent", node_rp_filter_all)) != 0)
         return rc;
     if ((rc = ta_conf_register("/agent", node_arp_ignore_all)) != 0)
         return rc;
+#endif
 
     if ((rc = ta_unix_conf_interface_init()) != 0)
         return rc;
@@ -1800,6 +1807,7 @@ switchdev_name_list(const ta_conf_ctx *ctx, te_vec *names)
     return 0;
 }
 
+#ifdef __linux__
 /**
  * Get RPF filtering value for interface "all"
  *
@@ -1859,6 +1867,7 @@ arp_ignore_all_set(const ta_conf_ctx *ctx, const char *val)
     UNUSED(ctx);
     return arp_ignore_set_core("all", val);
 }
+#endif /* __linux__ */
 
 static te_errno
 agent_platform_get(const ta_conf_ctx *ctx, te_string *val)

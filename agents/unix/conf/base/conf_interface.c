@@ -301,11 +301,13 @@ static te_errno oper_status_get(const ta_conf_ctx *ctx, bool *val);
 static te_errno status_get(const ta_conf_ctx *ctx, bool *val);
 static te_errno status_set(const ta_conf_ctx *ctx, bool val);
 
+#ifdef __linux__
 static te_errno rp_filter_get(const ta_conf_ctx *ctx, te_string *val);
 static te_errno rp_filter_set(const ta_conf_ctx *ctx, const char *val);
 
 static te_errno arp_ignore_get(const ta_conf_ctx *ctx, te_string *val);
 static te_errno arp_ignore_set(const ta_conf_ctx *ctx, const char *val);
+#endif /* __linux__ */
 
 static te_errno promisc_get(const ta_conf_ctx *ctx, bool *val);
 static te_errno promisc_set(const ta_conf_ctx *ctx, bool val);
@@ -380,6 +382,15 @@ static te_errno neigh_proxy_list(const ta_conf_ctx *ctx, te_vec *names);
 te_errno ta_vlan_get_children(const char *, size_t *, int *);
 te_errno ta_vlan_get_parent(const char *, char *);
 
+/* The variables of Linux in /proc/sys/net/ipv4/conf of an interface */
+#ifdef __linux__
+#define IFACE_IPV4_CONF_NODES \
+        TA_CONF_RW_STR("arp_ignore", arp_ignore_get, arp_ignore_set), \
+        TA_CONF_RW_STR("rp_filter", rp_filter_get, rp_filter_set),
+#else
+#define IFACE_IPV4_CONF_NODES
+#endif
+
 static const ta_conf_node *const node_interface =
     TA_CONF_LIST("interface", interface_list,
         TA_CONF_NA("hwtstamp",
@@ -410,8 +421,7 @@ static const ta_conf_node *const node_interface =
         TA_CONF_RW_BOOL("status", status_get, status_set),
         TA_CONF_RW_BOOL("promisc", promisc_get, promisc_set),
         TA_CONF_RW_BOOL("allmulti", allmulti_get, allmulti_set),
-        TA_CONF_RW_STR("arp_ignore", arp_ignore_get, arp_ignore_set),
-        TA_CONF_RW_STR("rp_filter", rp_filter_get, rp_filter_set),
+        IFACE_IPV4_CONF_NODES
         TA_CONF_COLL_STR("vlans", vlans_get, vlans_add, vlans_del,
                          vlans_list,
             TA_CONF_RO_STR("ifname", vlan_ifname_get)),
@@ -4833,6 +4843,7 @@ rp_filter_set_core(const char *ifname, const char *value)
 #endif
 }
 
+#ifdef __linux__
 /**
  * Get RPF filtering value.
  *
@@ -4860,6 +4871,7 @@ rp_filter_set(const ta_conf_ctx *ctx, const char *value)
 {
     return rp_filter_set_core(ta_conf_ctx_inst(ctx, "interface"), value);
 }
+#endif /* __linux__ */
 
 /* See the description in conf_common.h */
 te_errno
@@ -4901,6 +4913,7 @@ arp_ignore_set_core(const char *ifname, const char *value)
 #endif
 }
 
+#ifdef __linux__
 /**
  * Get arp_ignore value.
  *
@@ -4928,6 +4941,7 @@ arp_ignore_set(const ta_conf_ctx *ctx, const char *value)
 {
     return arp_ignore_set_core(ta_conf_ctx_inst(ctx, "interface"), value);
 }
+#endif /* __linux__ */
 
 /**
  * Get promiscuous mode of the interface (@c false - normal,
