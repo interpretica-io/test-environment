@@ -272,20 +272,33 @@ struct mmsghdr {
  */
 
 /**@{*/
+#if defined(__APPLE__) && defined(__aarch64__)
+/*
+ * Darwin on arm64 passes variadic arguments on the stack, and the
+ * functions called through these types take them in registers. A call
+ * through a type without a prototype passes the arguments in registers.
+ */
+#pragma clang diagnostic ignored "-Wdeprecated-non-prototype"
+#define API_FUNC_PARAMS(_first) ()
+#else
+/** Parameter list of the RPC call function types */
+#define API_FUNC_PARAMS(_first) (_first, ...)
+#endif
+
 /**
  * Type of RPC call function where
  * - the first argument is of integer type;
  * - return value is an integer.
  * .
  */
-typedef int (*api_func)(int param,...);
+typedef int (*api_func)API_FUNC_PARAMS(int param);
 /**
  * Type of RPC call function where
  * - the first argument is of pointer type;
  * - return value is an integer.
  * .
  */
-typedef int (*api_func_ptr)(void *param,...);
+typedef int (*api_func_ptr)API_FUNC_PARAMS(void *param);
 /**
  * Type of RPC call function where
  * - there is no arguments;
@@ -299,14 +312,14 @@ typedef int (*api_func_void)(void);
  * - return value is a pointer.
  * .
  */
-typedef void *(*api_func_ret_ptr)(int param,...);
+typedef void *(*api_func_ret_ptr)API_FUNC_PARAMS(int param);
 /**
  * Type of RPC call function where
  * - the first argument is of pointer type;
  * - return value is a pointer.
  * .
  */
-typedef void *(*api_func_ptr_ret_ptr)(void *param,...);
+typedef void *(*api_func_ptr_ret_ptr)API_FUNC_PARAMS(void *param);
 /**
  * Type of RPC call function where
  * - there is no arguments;
@@ -321,7 +334,18 @@ typedef void *(*api_func_void_ret_ptr)(void);
  * - return value is an integer64.
  * .
  */
-typedef int64_t (*api_func_ret_int64)(int param,...);
+typedef int64_t (*api_func_ret_int64)API_FUNC_PARAMS(int param);
+
+/*
+ * The functions which take variable arguments themselves are called by
+ * their prototypes: the types above may pass the arguments otherwise.
+ */
+/** Type of ioctl() */
+typedef int (*tarpc_ioctl_func)(int fd, unsigned long request, ...);
+/** Type of fcntl() */
+typedef int (*tarpc_fcntl_func)(int fd, int cmd, ...);
+/** Type of open() */
+typedef int (*tarpc_open_func)(const char *path, int flags, ...);
 
 /** @} */
 

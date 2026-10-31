@@ -6941,7 +6941,7 @@ flooder(tarpc_flooder_in *in)
     iomux_funcs iomux_f;
     api_func send_func;
     api_func recv_func;
-    api_func ioctl_func;
+    tarpc_ioctl_func ioctl_func;
 
     int        *rcvrs = in->rcvrs.rcvrs_val;
     int         rcvnum = in->rcvrs.rcvrs_len;
@@ -6977,7 +6977,8 @@ flooder(tarpc_flooder_in *in)
     if ((iomux_find_func(in->common.lib_flags, &iomux, &iomux_f) != 0)    ||
         (tarpc_find_func(in->common.lib_flags, "recv", &recv_func) != 0) ||
         (tarpc_find_func(in->common.lib_flags, "send", &send_func) != 0) ||
-        (tarpc_find_func(in->common.lib_flags, "ioctl", &ioctl_func) != 0))
+        (tarpc_find_func(in->common.lib_flags, "ioctl",
+                         (api_func *)&ioctl_func) != 0))
     {
         ERROR("failed to resolve function");
         return -1;
@@ -8438,7 +8439,7 @@ socket_to_file(tarpc_socket_to_file_in *in)
     api_func     write_func;
     api_func     read_func;
     api_func     close_func;
-    api_func_ptr open_func;
+    tarpc_open_func open_func;
     iomux_func   iomux = get_default_iomux();
 
     int      sock = in->sock;
@@ -8665,7 +8666,7 @@ overfill_buffers(tarpc_overfill_buffers_in *in,
     int             ret = 0;
     ssize_t         sent = 0;
     int             errno_save = errno;
-    api_func        ioctl_func;
+    tarpc_ioctl_func ioctl_func;
     api_func        send_func;
     iomux_funcs     iomux_f;
     iomux_func      iomux = in->iomux;
@@ -8684,7 +8685,8 @@ overfill_buffers(tarpc_overfill_buffers_in *in,
 
     memset(buf, 0xAD, sizeof(max_len));
 
-    if (tarpc_find_func(in->common.lib_flags, "ioctl", &ioctl_func) != 0)
+    if (tarpc_find_func(in->common.lib_flags, "ioctl",
+                        (api_func *)&ioctl_func) != 0)
     {
         ERROR("%s(): Failed to resolve ioctl() function", __FUNCTION__);
         ret = -1;
@@ -8987,7 +8989,7 @@ overfill_fd(tarpc_overfill_fd_in *in,
     int             ret = 0;
     ssize_t         sent = 0;
     int             errno_save = errno;
-    api_func        fcntl_func;
+    tarpc_fcntl_func fcntl_func;
     api_func        write_func;
     size_t          max_len = 4096;
     uint8_t        *buf = NULL;
@@ -8997,7 +8999,8 @@ overfill_fd(tarpc_overfill_fd_in *in,
 
     memset(buf, 0xAD, sizeof(max_len));
 
-    if (tarpc_find_func(in->common.lib_flags, "fcntl", &fcntl_func) != 0)
+    if (tarpc_find_func(in->common.lib_flags, "fcntl",
+                        (api_func *)&fcntl_func) != 0)
     {
         ERROR("%s(): Failed to resolve fcntl() function", __FUNCTION__);
         ret = -1;
@@ -10041,14 +10044,14 @@ mcast_join_leave(tarpc_mcast_join_leave_in  *in,
 {
     api_func            setsockopt_func;
     api_func_ret_ptr    if_indextoname_func;
-    api_func            ioctl_func;
+    tarpc_ioctl_func    ioctl_func;
 
     if (tarpc_find_func(in->common.lib_flags, "setsockopt",
                         &setsockopt_func) != 0 ||
         tarpc_find_func(in->common.lib_flags, "if_indextoname",
                         (api_func *)&if_indextoname_func) != 0 ||
         tarpc_find_func(in->common.lib_flags, "ioctl",
-                        &ioctl_func) != 0)
+                        (api_func *)&ioctl_func) != 0)
     {
         ERROR("Cannot resolve function name");
         out->retval = -1;
@@ -10243,14 +10246,14 @@ mcast_source_join_leave(tarpc_mcast_source_join_leave_in  *in,
 {
     api_func            setsockopt_func;
     api_func_ret_ptr    if_indextoname_func;
-    api_func            ioctl_func;
+    tarpc_ioctl_func    ioctl_func;
 
     if (tarpc_find_func(in->common.lib_flags, "setsockopt",
                         &setsockopt_func) != 0 ||
         tarpc_find_func(in->common.lib_flags, "if_indextoname",
                         (api_func *)&if_indextoname_func) != 0 ||
         tarpc_find_func(in->common.lib_flags, "ioctl",
-                        &ioctl_func) != 0)
+                        (api_func *)&ioctl_func) != 0)
     {
         ERROR("Cannot resolve function name");
         out->retval = -1;
