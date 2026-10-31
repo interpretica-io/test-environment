@@ -535,7 +535,7 @@ ta_kill_and_wait(pid_t pid, int sig, unsigned int timeout_s)
     if (rc != 0 && errno != ESRCH)
     {
         LOG_PRINT("Failed to terminate the process %d: %s",
-                  pid, strerror(errno));
+                  (int)pid, strerror(errno));
         return -1;
     }
 
@@ -548,14 +548,15 @@ ta_kill_and_wait(pid_t pid, int sig, unsigned int timeout_s)
         }
         else if (wpid != 0)
         {
-            LOG_PRINT("Failed to wait for pid %d: %s", pid, strerror(errno));
+            LOG_PRINT("Failed to wait for pid %d: %s", (int)pid,
+                      strerror(errno));
             return -1;
         }
         if (num_attempts > 0)
             te_msleep(delay_ms);
     } while (num_attempts-- > 0);
 
-    LOG_PRINT("Got timeout to wait for pid %d", pid);
+    LOG_PRINT("Got timeout to wait for pid %d", (int)pid);
     return -2;
 }
 
