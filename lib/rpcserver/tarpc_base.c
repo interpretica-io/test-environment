@@ -555,3 +555,45 @@ _set_var_1_svc(tarpc_set_var_in *in, tarpc_set_var_out *out,
 
     return true;
 }
+
+/*------------ namespace_id2str() -----------------------*/
+
+te_errno
+namespace_id2str(tarpc_namespace_id2str_in *in,
+                 tarpc_namespace_id2str_out *out)
+{
+    te_errno rc;
+    const char *buf = NULL;
+    rc = rcf_pch_mem_ns_get_string(in->id, &buf);
+    if (rc != 0)
+        return rc;
+    if (buf == NULL)
+        return TE_RC(TE_RPC, TE_ENOENT);
+
+    /*
+     * Name of namespace could be an empty line, so do not use TE_ALLOC here,
+     * because it complains about zero lenght.
+     */
+    out->str.str_val = TE_STRDUP(buf);
+    out->str.str_len = strlen(buf);
+    return 0;
+}
+
+TARPC_FUNC(namespace_id2str,
+{
+    /* Only blocking operation is supported for @b namespace_id2str */
+    in->common.op = RCF_RPC_CALL_WAIT;
+},
+{
+    MAKE_CALL(out->retval = func_ptr(in, out));
+})
+
+/*------------ release_rpc_ptr() -----------------------*/
+
+TARPC_FUNC_STANDALONE(release_rpc_ptr, {},
+{
+    MAKE_CALL(
+        RPC_PCH_MEM_WITH_NAMESPACE(ns, in->ns_string, {
+            RCF_PCH_MEM_INDEX_FREE(in->ptr, ns);
+    }));
+})
