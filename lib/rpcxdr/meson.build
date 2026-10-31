@@ -199,6 +199,8 @@ headers += files('rpc_xdr.h')
 
 sources += files('rpc_xdr.c', 'xml_xdr.c')
 sources += rpc_xdr
+# The table goes into the server-side library separately, see below
+sources_no_tbl = sources
 sources += rpc_tbl
 
 c_args += [
@@ -209,7 +211,22 @@ c_args += [
 deps += [ rpc_h_dep ]
 
 # Build server-side rpcxdr library here
-te_lib_rpcxdrta = static_library('rpcxdrta', sources, rpc_stub,
+ta_sources = sources + [ rpc_stub ]
+if host_windows
+    #
+    # The RPC table refers to the weak stubs. GNU ld for PE resolves such
+    # a reference only within the object which defines the stub, up to
+    # 2.42 at least, so the table and the stubs are one source there.
+    #
+    rpc_tbl_stub = custom_target('gen-tarpc-rpctbl-stub',
+                                 input: [ rpc_stub, rpc_tbl ],
+                                 output: [ 'tarpc_rpctbl_stub.c' ],
+                                 capture: true,
+                                 command: [ 'cat', '@INPUT@' ])
+    ta_sources = sources_no_tbl + [ rpc_tbl_stub ]
+endif
+
+te_lib_rpcxdrta = static_library('rpcxdrta', ta_sources,
                                  install: install_lib,
                                  include_directories: includes,
                                  c_args: [ '-DTE_DUMMY', c_args ],
