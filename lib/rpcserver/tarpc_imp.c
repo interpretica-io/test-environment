@@ -8704,8 +8704,12 @@ overfill_buffers(tarpc_overfill_buffers_in *in,
     }
     iomux_state_init_invalid(iomux, &iomux_st);
 
-#ifdef __sun__
-    /* SunOS has MSG_DONTWAIT flag, but does not support it for send */
+#if defined(__sun__) || defined(__APPLE__)
+    /*
+     * SunOS has MSG_DONTWAIT flag, but does not support it for send.
+     * send() of macOS with the flag on a blocking TCP socket waits for
+     * the window of the peer, so the buffers fill for minutes.
+     */
     if (!in->is_nonblocking)
     {
         int val = 1;
@@ -8799,7 +8803,7 @@ overfill_buffers(tarpc_overfill_buffers_in *in,
 overfill_buffers_exit:
     iomux_close(iomux, &iomux_f, &iomux_st);
 
-#ifdef __sun__
+#if defined(__sun__) || defined(__APPLE__)
     if (!in->is_nonblocking)
     {
         int val = 0;
