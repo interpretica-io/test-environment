@@ -1176,14 +1176,16 @@ te_fstat(tarpc_lib_flags lib_flags, int fd, rpc_stat *rpcbuf)
     FSTAT_COPY(rpcbuf, buf);
     return 0;
 #else
-    UNUSED(lib_flags);
-    UNUSED(rpcbuf);
+    struct stat buf;
 
-/*
- * #error "fstat family is not currently supported for non-linux unixes."
-*/
-    errno = EOPNOTSUPP;
-    return -1;
+    UNUSED(lib_flags);
+
+    memset(&buf, 0, sizeof(buf));
+    if (fstat(fd, &buf) < 0)
+        return -1;
+
+    FSTAT_COPY(rpcbuf, buf);
+    return 0;
 #endif
 }
 
@@ -1232,15 +1234,8 @@ te_fstat64(tarpc_lib_flags lib_flags, int fd, rpc_stat *rpcbuf)
     FSTAT_COPY(rpcbuf, buf);
     return 0;
 #else
-/*
- * #error "fstat family is not currently supported for non-linux unixes."
- */
-    UNUSED(lib_flags);
-    UNUSED(fd);
-    UNUSED(rpcbuf);
-
-    ERROR("fstat64 is not supported");
-    return -1;
+    /* fstat() of macOS, the BSDs and 64-bit Linux has 64-bit sizes */
+    return te_fstat(lib_flags, fd, rpcbuf);
 #endif
 }
 
