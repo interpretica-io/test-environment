@@ -138,7 +138,8 @@ in a call and RCF has to cancel it.
 The agent implements these RPC calls, the others fail with
 ``TE_ERPCNOTSUPP``:
 
-* ``getpid``, ``pthread_self``, ``getenv``, ``setenv``, ``unsetenv``;
+* ``getpid``, ``pthread_self``, ``getenv``, ``setenv``, ``unsetenv``,
+  ``gethostname``;
 
 * ``socket``, ``close``, ``closesocket``, ``bind``, ``connect``,
   ``listen``, ``accept``, ``send``, ``sendto``, ``recv``, ``recvfrom``,
@@ -147,12 +148,36 @@ The agent implements these RPC calls, the others fail with
 * ``setsockopt`` and ``getsockopt`` with integer, linger and timeval
   values;
 
-* the calls of lib/rpcserver: ``setlibname``, ``rpc_find_func``,
-  ``get_sizeof``, ``get_addrof``, ``get_var``, ``set_var``.
+* ``read``, ``write``, ``readv``, ``writev``, ``pipe``;
 
-A socket is the Winsock ``SOCKET`` taken as an integer. ``close`` closes
-both sockets and files. The errors of Winsock are reported as the POSIX
+* ``poll``, ``select`` and the calls of ``fd_set``;
+
+* ``ioctl`` with ``FIONBIO``, ``FIONREAD`` and ``SIOCATMARK``, ``fcntl``
+  with ``F_GETFD``, ``F_SETFD``, ``F_GETFL`` and ``F_SETFL``;
+
+* ``open``, ``lseek``, ``fsync``, ``access``, ``unlink``, ``mkdir``,
+  ``rmdir``;
+
+* ``te_shell_cmd``, ``system``, ``kill``, ``waitpid``, ``ta_kill_death``,
+  ``ta_kill_and_wait``;
+
+* ``malloc``, ``free``, ``memcmp``, ``set_buf``, ``get_buf``,
+  ``set_buf_pattern``;
+
+* the calls of lib/rpcserver: ``setlibname``, ``rpc_find_func``,
+  ``get_sizeof``, ``get_addrof``, ``get_var``, ``set_var``,
+  ``namespace_id2str``, ``release_rpc_ptr``.
+
+A socket is the Winsock ``SOCKET`` taken as an integer, a file is
+a descriptor of the C runtime. ``close``, ``read``, ``write``, ``readv``
+and ``writev`` take either kind. ``poll`` and ``select`` take sockets
+only, as Winsock does. The errors of Winsock are reported as the POSIX
 error codes.
+
+Files are opened as binary ones. Windows tells only whether the owner
+may write a file, so ``open`` takes nothing else of the mode, and
+``access`` takes ``X_OK`` as granted. ``F_GETFL`` cannot tell whether
+a socket is non-blocking.
 
 
 
