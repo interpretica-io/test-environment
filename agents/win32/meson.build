@@ -15,6 +15,7 @@ includes = []
 c_args = [
     '-fno-strict-aliasing',
     '-DTE_AGT_PLATFORM="' + ta_platform + '"',
+    '-DRCF_RPC',
 ]
 
 # The agent is a single file: a host may have an older libwinpthread-1.dll
@@ -28,6 +29,7 @@ endforeach
 
 sources = files(
     'conf.c',
+    'tarpc.c',
     'win32.c',
 )
 

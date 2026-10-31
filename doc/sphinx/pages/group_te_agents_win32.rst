@@ -32,9 +32,11 @@ The Windows Test Agent supports the following features:
 
 * process and thread creation;
 
-* the configuration tree described below.
+* the configuration tree described below;
 
-RPC calls, TAD protocols and sniffers are not supported yet.
+* RPC servers and the RPC calls listed below.
+
+TAD protocols and sniffers are not supported yet.
 
 
 
@@ -114,6 +116,46 @@ process group does on POSIX systems.
 
 
 
+.. _doxid-group__te__agents__win32_1te_agent_win32_rpc:
+
+RPC
+~~~
+
+An RPC server is a new instance of the agent, ``ta.exe exec
+rcf_pch_rpc_server_argv <name>``. It connects to the agent over an AF_UNIX
+socket in the directory of ``ta.exe``.
+
+Windows has no fork(), so an RPC server can be created as a root one,
+as a thread of another one, or by ``rcf_rpc_server_fork_exec()``. The
+child of the latter is a new instance of the agent too: it gets the
+environment of its father and nothing else. ``rcf_rpc_server_fork()``
+fails with ``TE_EOPNOTSUPP``.
+
+winpthreads cancels a thread only at ``pthread_testcancel()``. A thread
+RPC server stops when RCF asks it to finish, but not when it is blocked
+in a call and RCF has to cancel it.
+
+The agent implements these RPC calls, the others fail with
+``TE_ERPCNOTSUPP``:
+
+* ``getpid``, ``pthread_self``, ``getenv``, ``setenv``, ``unsetenv``;
+
+* ``socket``, ``close``, ``closesocket``, ``bind``, ``connect``,
+  ``listen``, ``accept``, ``send``, ``sendto``, ``recv``, ``recvfrom``,
+  ``shutdown``, ``getsockname``, ``getpeername``;
+
+* ``setsockopt`` and ``getsockopt`` with integer, linger and timeval
+  values;
+
+* the calls of lib/rpcserver: ``setlibname``, ``rpc_find_func``,
+  ``get_sizeof``, ``get_addrof``, ``get_var``, ``set_var``.
+
+A socket is the Winsock ``SOCKET`` taken as an integer. ``close`` closes
+both sockets and files. The errors of Winsock are reported as the POSIX
+error codes.
+
+
+
 .. _doxid-group__te__agents__win32_1te_agent_win32_conf:
 
 Configuration tree
@@ -154,4 +196,6 @@ Source organization
 * agents/win32/win32.c - entry point of the Test Agent and the functions of
   the RCF PCH interface;
 
-* agents/win32/conf.c - the configuration tree.
+* agents/win32/conf.c - the configuration tree;
+
+* agents/win32/tarpc.c - the RPC calls.
