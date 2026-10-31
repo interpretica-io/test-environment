@@ -4940,7 +4940,12 @@ TARPC_FUNC(ioctl,
         req_ptr = NULL;
     }
 
-    MAKE_CALL(out->retval = func(in->s, native_code, req_ptr));
+    /*
+     * The requests of Darwin and the BSDs have the top bit set: keep them
+     * from the sign extension to unsigned long, which the call takes.
+     */
+    MAKE_CALL(out->retval = func(in->s, (unsigned int)native_code,
+                                 req_ptr));
     if (req_ptr != NULL)
     {
         rc = tarpc_ioctl_post(in, out, req_ptr);
