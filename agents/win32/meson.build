@@ -30,6 +30,7 @@ endforeach
 sources = files(
     'conf.c',
     'tarpc.c',
+    'tarpc_wsa.c',
     'win32.c',
 )
 
