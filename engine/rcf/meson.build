@@ -35,7 +35,7 @@ rcf_cfiles = [
     ]
 
 executable('te_rcf', rcf_cfiles, rcf_consistency_checks, install: true,
-           link_args: [  '-rdynamic', '-export-dynamic' ],
+           link_args: [ '-rdynamic' ],
            dependencies: [ common_deps, dep_lib_ipcserver, deps ])
 
 executable('te_rcf_shutdown', 'rcf_shutdown.c', install: true,
