@@ -254,6 +254,12 @@ parse_parameters(char *params, bool *is_argv, int *argc, void **param)
         SKIP_SPACES(ptr);
         while (*ptr != 0)
         {
+            if (n >= RCF_MAX_PARAMS)
+            {
+                ERROR("More than %d parameters of a routine",
+                      RCF_MAX_PARAMS);
+                return TE_EINVAL;
+            }
             if (transform_str(&ptr, (char **)(param + n)) != 0)
                 return TE_EINVAL;
             n++;
@@ -269,14 +275,24 @@ parse_parameters(char *params, bool *is_argv, int *argc, void **param)
         {
             uint64_t val;
             int      type;
+            int      words;
             char    *tmp;
-
-            if (n > RCF_MAX_PARAMS)
-                return TE_EINVAL;
 
             if ((type = get_type(&ptr)) == RCF_TYPE_TOTAL)
                 return TE_EINVAL;
             VERB("%s(): type is %d", __FUNCTION__, type);
+
+            /* A 64-bit integer takes two words on a 32-bit agent */
+            if (type == RCF_INT64 || type == RCF_UINT64)
+                words = sizeof(uint64_t) / sizeof(void *);
+            else
+                words = 1;
+            if (n + words > RCF_MAX_PARAMS)
+            {
+                ERROR("The parameters of a routine take more than %d words",
+                      RCF_MAX_PARAMS);
+                return TE_EINVAL;
+            }
 
             if (type == RCF_STRING)
             {
@@ -298,7 +314,7 @@ parse_parameters(char *params, bool *is_argv, int *argc, void **param)
             if (type == RCF_INT64 || type == RCF_UINT64)
             {
                 *(uint64_t *)(param + n) = val;
-                n += sizeof(uint64_t) / sizeof(void *);
+                n += words;
             }
             else
             {
