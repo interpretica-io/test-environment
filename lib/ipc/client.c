@@ -328,8 +328,8 @@ get_datagram(struct ipc_client *ipcc,
     TAILQ_FOREACH(ptr, &ipcc->dgram.datagrams, links)
     {
         if (pool_item == NULL ||
-            ((pool_item->sa_len == ptr->sa_len) &&
-             (memcmp(&pool_item->sa, &ptr->sa, pool_item->sa_len) == 0)))
+            strcmp(ipc_sun_name(&pool_item->sa),
+                   ipc_sun_name(&ptr->sa)) == 0)
         {
             assert(ptr->octets <= IPC_SEGMENT_SIZE);
 
@@ -441,8 +441,11 @@ get_datagram(struct ipc_client *ipcc,
                 return NULL;
             }
 
-            if ((sa_len != pool_item->sa_len) ||
-                memcmp(&sa,&pool_item->sa, sa_len))
+            /*
+             * Compare the names: the address recvfrom() gives may be
+             * shorter than the one the client has made, as on macOS
+             */
+            if (strcmp(ipc_sun_name(&sa), ipc_sun_name(&pool_item->sa)) != 0)
             {
                 /*
                  * While we trying to receive rest of the partial
