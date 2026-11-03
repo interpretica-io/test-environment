@@ -2390,8 +2390,9 @@ tapi_rpc_send_icmp4_echo(struct rcf_rpc_server *rpcs,
                          const struct sockaddr *addr)
 {
 #ifdef HAVE_NETINET_IP_ICMP_H
-    struct icmphdr *icp;
-    char            buf[ICMP_DATALEN + sizeof(*icp)] = {0};
+    /* The header of ICMP: type, code, checksum and 4 more bytes */
+    char            buf[ICMP_DATALEN + 8] = {0};
+    uint16_t        csum;
     size_t          req_len = sizeof(buf);
     rpc_msghdr      msg;
     rpc_iovec       iov;
@@ -2403,10 +2404,11 @@ tapi_rpc_send_icmp4_echo(struct rcf_rpc_server *rpcs,
     sock = rpc_socket(rpcs, rpc_socket_domain_by_addr(addr),
                       RPC_SOCK_RAW, RPC_IPPROTO_ICMP);
 
-    icp = (struct icmphdr *)buf;
-    icp->type = ICMP_ECHO;
-    icp->checksum = calculate_checksum(buf, req_len);
-    icp->checksum = ~icp->checksum & 0xffff;
+    /* struct icmphdr is of Linux, struct icmp of the BSDs */
+    buf[0] = ICMP_ECHO;
+    csum = calculate_checksum(buf, req_len);
+    csum = ~csum & 0xffff;
+    memcpy(buf + 2, &csum, sizeof(csum));
 
     iov.iov_base = buf;
     iov.iov_len = iov.iov_rlen = req_len;
