@@ -244,6 +244,9 @@
 /* Define to 1 if you have the <sys/ethernet.h> header file. */
 #mesondefine HAVE_SYS_ETHERNET_H
 
+/* Define to 1 if you have the <sys/eventfd.h> header file. */
+#mesondefine HAVE_SYS_EVENTFD_H
+
 /* Define to 1 if you have the <sys/filio.h> header file. */
 #mesondefine HAVE_SYS_FILIO_H
 

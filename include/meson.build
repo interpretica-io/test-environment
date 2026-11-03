@@ -85,6 +85,7 @@ check_headers = [
     'sys/cdefs.h',
     'sys/errno.h',
     'sys/ethernet.h',
+    'sys/eventfd.h',
     'sys/filio.h',
     'sys/ioctl.h',
     'sys/mman.h',

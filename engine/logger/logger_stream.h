@@ -11,7 +11,6 @@
 #define __TE_LOGGER_STREAM_H__
 
 #include <pthread.h>
-#include <sys/eventfd.h>
 
 #include "te_defs.h"
 #include "te_errno.h"
@@ -31,6 +30,9 @@ typedef struct msg_queue {
     bool shutdown; /**< Whether the queue is being shutdown */
     pthread_mutex_t mutex;    /**< Mutex for consumer-producer synchronization */
     int             eventfd;  /**< File descriptor for consumer to poll on */
+    int             notify_fd; /**< File descriptor for producers to write
+                                    to: eventfd itself, or the write end
+                                    of a pipe where eventfd() is absent */
 } msg_queue;
 
 /**
