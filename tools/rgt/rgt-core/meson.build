@@ -28,7 +28,8 @@ rgt_core = executable(
     rgt_core_sources,
     include_directories: inc,
     dependencies: [dep_glib, dep_popt, dep_libxml2, dep_lib_tools,
-                   dep_lib_logger_core, dep_jansson, dep_lib_log_proc],
+                   dep_lib_logger_core, dep_jansson, dep_lib_log_proc,
+                   dep_obstack],
     install: true,
     c_args: c_args,
 )

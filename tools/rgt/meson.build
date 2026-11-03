@@ -53,8 +53,17 @@ does_link = cc.links(
     name: 'obstack link check',
 )
 
-if not does_link
-    error('Obstack feature is required to build RGT')
+# The C library of macOS and the BSDs has no obstacks: take the ones
+# in compat/
+if does_link
+    dep_obstack = declare_dependency()
+else
+    inc_obstack = include_directories('compat')
+    inc = [inc, inc_obstack]
+    dep_obstack = declare_dependency(
+        include_directories: inc_obstack,
+        link_with: static_library('rgt_obstack', 'compat/obstack.c'),
+    )
 endif
 
 # Add large logs support if required
