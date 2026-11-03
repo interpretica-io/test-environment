@@ -234,7 +234,7 @@ lgr_register_message(const void *buf, size_t len)
             return;
         }
         /* RAW log is too big now, ignore new messages */
-        if (raw_file_stat.st_size > (off64_t)raw_log_max_size)
+        if (raw_file_stat.st_size > (off_t)raw_log_max_size)
         {
             raw_log_too_big = true;
 
