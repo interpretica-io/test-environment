@@ -37,6 +37,7 @@ headers += files(
     'te_pci_ids.h',
     'te_rand.h',
     'te_ring.h',
+    'te_search.h',
     'te_serial.h',
     'te_serial_common.h',
     'te_serial_parser.h',

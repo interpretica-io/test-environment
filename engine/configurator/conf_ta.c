@@ -6,7 +6,7 @@
  * TA interaction auxiliary routines
  */
 
-#include <search.h>
+#include "te_search.h"
 #include "te_str.h"
 #include "conf_defs.h"
 #include "rcf_api.h"

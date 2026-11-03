@@ -158,13 +158,15 @@ endforeach
 check_functions = [
     # POSIX per-process timers: absent on Darwin.
     'timer_create',
-    # GNU extension: absent on Darwin and the BSDs.
+    # GNU extensions: absent on Darwin and the BSDs.
     'execvpe',
+    'tdestroy',
 ]
 
 foreach f : check_functions
     if cc.has_function(f, args: c_args, prefix: '#include <time.h>\n' +
-                                                '#include <unistd.h>')
+                                                '#include <unistd.h>\n' +
+                                                '#include <search.h>')
         have = 'HAVE_' + f.to_upper().underscorify()
         conf.set(have, 1)
         c_args += [ '-D' + have ]
