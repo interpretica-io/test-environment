@@ -235,6 +235,9 @@
 /* Define to 1 if the system has the type `struct iphdr'. */
 #mesondefine HAVE_STRUCT_IPHDR
 
+/* Define to 1 if `struct arpreq' has `arp_dev'. */
+#mesondefine HAVE_STRUCT_ARPREQ_ARP_DEV
+
 /* Define to 1 if xdr_char() and xdr_u_char() store the value on encoding. */
 #mesondefine TE_XDR_CHAR_STORES_BACK
 

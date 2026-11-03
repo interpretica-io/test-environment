@@ -302,6 +302,12 @@ if host_machine.system() == 'darwin'
     conf.set('TE_XDR_CHAR_STORES_BACK', 1)
 endif
 
+# The device of an ARP request: Linux only
+if cc.has_member('struct arpreq', 'arp_dev', args: c_args,
+                 prefix: sockaddr_sa_len_prefix + '#include <net/if_arp.h>\n')
+    conf.set('HAVE_STRUCT_ARPREQ_ARP_DEV', 1)
+endif
+
 #
 # Check for the Linux layout of the IPv4 header. Darwin, Solaris2 and
 # the BSDs provide 'struct ip' with differently named members instead.

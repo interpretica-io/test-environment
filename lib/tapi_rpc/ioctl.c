@@ -248,9 +248,11 @@ rpc_ioctl(rcf_rpc_server *rpcs,
                 in.req.req_val[0].ioctl_request_u.req_ifreq.
                     rpc_ifr_name.rpc_ifr_name_len =
                     sizeof(((struct ifreq *)arg)->ifr_name);
+#if defined(ifr_ifindex)
                 in.req.req_val[0].ioctl_request_u.req_ifreq.
                     rpc_ifr_ifindex =
                     ((struct ifreq *)arg)->ifr_ifindex;
+#endif
             }
             break;
 
@@ -328,6 +330,7 @@ rpc_ioctl(rcf_rpc_server *rpcs,
                 FILL_ARPREQ_ADDR(pa);
                 /* Copy HW address */
                 FILL_ARPREQ_ADDR(ha);
+#if HAVE_STRUCT_ARPREQ_ARP_DEV
                  /* Copy device */
                 in.req.req_val[0].ioctl_request_u.req_arpreq.
                     rpc_arp_dev.rpc_arp_dev_val =
@@ -335,11 +338,13 @@ rpc_ioctl(rcf_rpc_server *rpcs,
                 in.req.req_val[0].ioctl_request_u.req_arpreq.
                     rpc_arp_dev.rpc_arp_dev_len =
                     sizeof(((struct arpreq *)arg)->arp_dev);
+#endif
             }
             break;
 
 #undef FILL_ARPREQ_ADDR
 
+#if HAVE_SCSI_SG_H
         case RPC_SG_IO:
             in.access = IOCTL_RD;
 
@@ -421,6 +426,7 @@ rpc_ioctl(rcf_rpc_server *rpcs,
 #endif
             }
             break;
+#endif
 
         case RPC_SIOCGHWTSTAMP:
         case RPC_SIOCSHWTSTAMP:
@@ -698,9 +704,11 @@ rpc_ioctl(rcf_rpc_server *rpcs,
                             break;
                         }
 
+#if defined(ifr_ifindex)
                     case RPC_SIOCGIFINDEX:
                         ifreq->ifr_ifindex = rpc_ifreq->rpc_ifr_ifindex;
                         break;
+#endif
                     case RPC_SIOCGIFNAME:
                         memcpy(ifreq->ifr_name,
                                rpc_ifreq->rpc_ifr_name.rpc_ifr_name_val,
@@ -759,6 +767,7 @@ rpc_ioctl(rcf_rpc_server *rpcs,
                                   req_arpreq.rpc_arp_flags);
                 break;
             }
+#if HAVE_SCSI_SG_H
             case IOCTL_SGIO:
             {
 
@@ -814,6 +823,7 @@ rpc_ioctl(rcf_rpc_server *rpcs,
                     info;
                 break;
             }
+#endif
 
             case IOCTL_PTP_CLOCK_CAPS:
                 memcpy(
@@ -898,6 +908,7 @@ rpc_ioctl(rcf_rpc_server *rpcs,
                                             ifr_addr))->sin_addr));
                     break;
 
+#if defined(ifr_hwaddr)
                 case RPC_SIOCGIFHWADDR:
                     te_string_append(
                              req_str,
@@ -915,6 +926,7 @@ rpc_ioctl(rcf_rpc_server *rpcs,
                              (unsigned char)((struct ifreq *)arg)->
                                  ifr_hwaddr.sa_data[5]);
                     break;
+#endif
 
                 case RPC_SIOCGIFMTU:
                 case RPC_SIOCSIFMTU:
@@ -924,6 +936,7 @@ rpc_ioctl(rcf_rpc_server *rpcs,
                              ((struct ifreq *)arg)->ifr_mtu);
                     break;
 
+#if defined(ifr_ifindex)
                 case RPC_SIOCGIFNAME:
                 case RPC_SIOCGIFINDEX:
                     te_string_append(
@@ -931,6 +944,7 @@ rpc_ioctl(rcf_rpc_server *rpcs,
                              "ifindex: %u ",
                              ((struct ifreq *)arg)->ifr_ifindex);
                     break;
+#endif
 
                 case RPC_SIOCGIFFLAGS:
                 case RPC_SIOCSIFFLAGS:
@@ -1117,10 +1131,14 @@ rpc_ioctl(rcf_rpc_server *rpcs,
                              strcat(flags, "M");
                          if (arp_flags & ATF_PUBL)
                              strcat(flags, "P");
+#ifdef ATF_MAGIC
                          if (arp_flags & ATF_MAGIC)
                              strcat(flags, "A");
+#endif
+#ifdef ATF_DONTPUB
                          if (arp_flags & ATF_DONTPUB)
                              strcat(flags, "!");
+#endif
                          if (arp_flags & ATF_USETRAILERS)
                              strcat(flags, "T");
                          if (!(arp_flags & ATF_COM) &&
