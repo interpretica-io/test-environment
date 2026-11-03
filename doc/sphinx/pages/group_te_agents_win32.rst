@@ -87,6 +87,9 @@ names another one.
 TE also needs ``rpcgen`` of glibc on the build host: the ``rpcsvc-proto``
 package of Linux distributions and of Homebrew.
 
+The te-docker image (github.com/interpretica-io/te-docker) has both
+toolchains: MinGW-w64 of Ubuntu for x86-64 and llvm-mingw for ARM64.
+
 The C runtime of Windows has no POSIX layer and no Sun RPC. lib/win32compat
 provides the POSIX interfaces TE uses on top of Winsock and the Windows API,
 and lib/rpcxdr provides XDR. The libraries of TE are built static there,
