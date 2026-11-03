@@ -72,6 +72,15 @@ if get_option('large-logs')
     c_args += ['-D_LARGEFILE64_SOURCE', '-D_FILE_OFFSET_BITS=64']
 endif
 
+# macOS and the BSDs have getprogname() of <stdlib.h> instead
+if cc.has_header_symbol('errno.h', 'program_invocation_short_name',
+                        args: '-D_GNU_SOURCE')
+    dep_progname = declare_dependency()
+else
+    dep_progname = declare_dependency(
+        compile_args: '-Dprogram_invocation_short_name=getprogname()')
+endif
+
 # RGT uses many GNU extensions:
 #  - obstack_printf
 #  - program_invocation_short_name

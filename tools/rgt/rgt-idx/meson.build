@@ -14,6 +14,6 @@ foreach rgt_idx_tool: rgt_idx_tools
         rgt_idx_tool + '.c',
         include_directories: inc,
         install: true,
-        dependencies: [dep_lib_tools]
+        dependencies: [dep_lib_tools, dep_progname]
     )
 endforeach
