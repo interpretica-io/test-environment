@@ -76,7 +76,7 @@ rpc_server_sem_init(rcf_rpc_server *rpcs)
     pthread_mutexattr_t attr;
 
     pthread_mutexattr_init(&attr);
-    if (pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE_NP) != 0 ||
+    if (pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE) != 0 ||
         pthread_mutex_init(&rpcs->lock, &attr) != 0)
     {
         ERROR("Cannot initialize mutex for RPC server");
