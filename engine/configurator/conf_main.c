@@ -28,6 +28,8 @@
 #include <signal.h>
 #endif
 
+extern char **environ;
+
 /** Format for backup file name */
 #define CONF_BACKUP_NAME         "%s/te_cfg_backup_%d_%llu.xml"
 
