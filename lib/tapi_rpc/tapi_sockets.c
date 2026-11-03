@@ -106,6 +106,16 @@ tapi_sock_raw_tcpv4_send(rcf_rpc_server *rpcs, rpc_iovec *iov,
                          int iovlen, int ifindex, int raw_socket,
                          bool remove_vlan_hdr)
 {
+#ifndef HAVE_NETPACKET_PACKET_H
+    /* The packet sockets are of Linux */
+    UNUSED(rpcs);
+    UNUSED(iov);
+    UNUSED(iovlen);
+    UNUSED(ifindex);
+    UNUSED(raw_socket);
+    UNUSED(remove_vlan_hdr);
+    return TE_RC(TE_TAPI, TE_EOPNOTSUPP);
+#else
     uint8_t                *raw_packet;
     ssize_t                 total_size = 0;
     struct sockaddr_ll      sadr_ll;
@@ -148,4 +158,5 @@ tapi_sock_raw_tcpv4_send(rcf_rpc_server *rpcs, rpc_iovec *iov,
 out:
     free(raw_packet);
     return rc;
+#endif
 }
