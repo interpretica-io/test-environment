@@ -1,4 +1,4 @@
-#! /bin/bash
+#!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
 # Helper script to build ta_rpcprovider application.
