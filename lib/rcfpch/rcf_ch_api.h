@@ -56,11 +56,25 @@ extern "C" {
  * this situation.
  */
 
+/*
+ * The routines take up to RCF_MAX_PARAMS words of parameters and are not
+ * variadic, so these prototypes are not variadic either. Calls through
+ * a variadic prototype pass the parameters on the stack on Apple arm64,
+ * where a routine looks for them in registers.
+ */
+
 /** Generic routine prototype */
-typedef te_errno (* rcf_rtn)(void *arg, ...);
+typedef te_errno (* rcf_rtn)(void *arg0, void *arg1, void *arg2,
+                             void *arg3, void *arg4, void *arg5,
+                             void *arg6, void *arg7, void *arg8,
+                             void *arg9);
 
 /** Generic threaded routine prototype */
-typedef te_errno (* rcf_thr_rtn)(void *sem, void *arg, ...);
+typedef te_errno (* rcf_thr_rtn)(void *sem,
+                                 void *arg0, void *arg1, void *arg2,
+                                 void *arg3, void *arg4, void *arg5,
+                                 void *arg6, void *arg7, void *arg8,
+                                 void *arg9);
 
 /** argv/argc routine prototype */
 typedef te_errno (* rcf_argv_rtn)(int argv, char **argc);
