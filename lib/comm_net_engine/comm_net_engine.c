@@ -45,6 +45,10 @@
 #include "te_errno.h"
 #include "comm_net_engine.h"
 
+#if !defined(SOL_TCP) && defined(IPPROTO_TCP)
+#define SOL_TCP IPPROTO_TCP
+#endif
+
 
 #ifndef TE_COMM_DEBUG_PROTO
 /** Use '\n' as separator? */
