@@ -55,6 +55,37 @@ available only for Linux OS.
 
 
 
+.. _doxid-group__te__agents__unix_1te_agent_unix_macos:
+
+Agent for macOS
+~~~~~~~~~~~~~~~
+
+The agent builds on macOS natively, and the Builder builds it on Linux
+as well, with clang, ``ld64.lld`` and an SDK of macOS. The platform names
+the triplet of the target in its host parameter. The sniffers need Linux,
+so the agent type turns them off:
+
+.. ref-code-block:: none
+
+	TE_PLATFORM([mac], [--host=aarch64-apple-darwin], [], [], [],
+	            [logger_core tools conf_oid rpcxdr rpc_types asn ndn \
+	             comm_net_agent loggerta rpctransport agentlib rpcserver \
+	             rcfpch tad ta_job])
+
+	TE_LIB_PARMS([tad], [mac], [],
+	             [--with-eth --with-ipstack --with-socket --with-arp])
+
+	TE_TA_TYPE([mac], [mac], [unix],
+	           [--with-rcf-rpc --without-static-libc --without-sniffers],
+	           [], [], [], [comm_net_agent ndn asn])
+
+The Builder takes the tools ``aarch64-apple-darwin-gcc``,
+``aarch64-apple-darwin-nm`` and so on from ``PATH``, and the system of the
+cross file from the triplet clang reports. ta_job needs PCRE2 of the
+target. The te-docker image (github.com/interpretica-io/te-docker) has
+these tools and builds PCRE2 itself. Mount an SDK of macOS into it at
+``/opt/macos-sdk``.
+
 .. _doxid-group__te__agents__unix_1te_agent_unix_source:
 
 Source organization
