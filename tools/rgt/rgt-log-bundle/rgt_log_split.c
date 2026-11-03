@@ -15,7 +15,6 @@
 #include <popt.h>
 
 #include <inttypes.h>
-#include <byteswap.h>
 
 #include <sys/types.h>
 #include <dirent.h>
@@ -491,7 +490,7 @@ get_pcap_data_len(rgt_pcap_file *pfile)
 
     len = pfile->cur_hdr.caplen;
     if (pfile->other_byte_order)
-        len = bswap_32(len);
+        len = __builtin_bswap32(len);
 
     return len;
 }
@@ -565,8 +564,8 @@ get_next_pcap(rgt_pcap_file *pfile, te_pcap_pkthdr *hdr,
         pfile->ts_usec = pfile->cur_hdr.ts.tv_usec;
         if (pfile->other_byte_order)
         {
-            pfile->ts_sec = bswap_32(pfile->ts_sec);
-            pfile->ts_usec = bswap_32(pfile->ts_usec);
+            pfile->ts_sec = __builtin_bswap32(pfile->ts_sec);
+            pfile->ts_usec = __builtin_bswap32(pfile->ts_usec);
         }
     }
 
