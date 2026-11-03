@@ -1610,11 +1610,16 @@ else
     RAW_PROC_OPTS+=("--no-sniff-log")
 fi
 
-# CONF_RGT should not expand to empty word here
-rgt-proc-raw-log "${RAW_PROC_OPTS[@]}" ${CONF_RGT:+"${CONF_RGT}"} \
-    "${RGT_X2HM_OPTS[@]}"
+if command -v rgt-proc-raw-log >/dev/null ; then
+    # CONF_RGT should not expand to empty word here
+    rgt-proc-raw-log "${RAW_PROC_OPTS[@]}" ${CONF_RGT:+"${CONF_RGT}"} \
+        "${RGT_X2HM_OPTS[@]}"
 
-myecho "done"
+    myecho "done"
+else
+    # TE_TOOLS of the Builder lacks rgt, as on macOS
+    myecho "skipped: RGT is not built, the raw log is ${TE_LOG_RAW}"
+fi
 
 if test ${START_OK} -ne 1 -a -n "${TE_DO_TCE}" ; then
     myecho "--->>> TCE processing"
