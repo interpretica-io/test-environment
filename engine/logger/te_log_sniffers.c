@@ -36,7 +36,9 @@
 #error dirent library is required for Logger
 #endif
 
+#if HAVE_SYS_SENDFILE_H
 #include <sys/sendfile.h>
+#endif
 
 #include "te_alloc.h"
 #include "te_raw_log.h"
@@ -547,6 +549,44 @@ sniffer_save_info(const char *agent, snif_id_l *snif, int fd_o)
     free(mark.message);
 }
 
+
+/*
+ * Copy @p count bytes from the current position of @p fd_in to @p fd_out,
+ * as sendfile() of Linux does.
+ */
+static ssize_t
+sniffer_copy(int fd_out, int fd_in, size_t count)
+{
+#if HAVE_SYS_SENDFILE_H
+    return sendfile(fd_out, fd_in, NULL, count);
+#else
+    char    buf[65536];
+    size_t  done = 0;
+
+    while (done < count)
+    {
+        size_t  len = MIN(sizeof(buf), count - done);
+        ssize_t r = read(fd_in, buf, len);
+        ssize_t w;
+
+        if (r < 0)
+            return -1;
+        if (r == 0)
+            break;
+        for (w = 0; w < r; )
+        {
+            ssize_t n = write(fd_out, buf + w, r - w);
+
+            if (n < 0)
+                return -1;
+            w += n;
+        }
+        done += r;
+    }
+    return done;
+#endif
+}
+
 /**
  * Capture files processing.
  *
@@ -651,7 +691,7 @@ sniffer_capture_file_proc(const char *fname, snif_id_l *snif,
     while ((mark = sniffer_check_markers(size, snif, agent)) != NULL)
     {
         cur_size = mark->id.abs_offset - snif->id.abs_offset;
-        res = sendfile(fd_o, fd_n, 0, cur_size);
+        res = sniffer_copy(fd_o, fd_n, cur_size);
         size -= cur_size;
         sniffer_insert_marker(fd_o, mark);
 
@@ -659,7 +699,7 @@ sniffer_capture_file_proc(const char *fname, snif_id_l *snif,
         free(mark);
         snif->id.abs_offset += cur_size;
     }
-    res = sendfile(fd_o, fd_n, 0, size);
+    res = sniffer_copy(fd_o, fd_n, size);
     if ((res == -1) || (res < size))
     {
         WARN("Couldn't copy capture log res %d: %s --> %s: %s", res, fname,
