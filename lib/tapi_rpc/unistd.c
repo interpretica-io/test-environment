@@ -2530,7 +2530,8 @@ rpc_getpwnam(rcf_rpc_server *rpcs, const char *name)
     tarpc_getpwnam_in  in;
     tarpc_getpwnam_out out;
 
-    static struct passwd passwd = { NULL, NULL, 0, 0, NULL, NULL, NULL};
+    /* The members of struct passwd differ between the systems */
+    static struct passwd passwd;
 
     struct passwd *res;
 
