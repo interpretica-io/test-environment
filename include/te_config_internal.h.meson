@@ -235,6 +235,9 @@
 /* Define to 1 if the system has the type `struct iphdr'. */
 #mesondefine HAVE_STRUCT_IPHDR
 
+/* Define to 1 if xdr_char() and xdr_u_char() store the value on encoding. */
+#mesondefine TE_XDR_CHAR_STORES_BACK
+
 /* Define to 1 if `sa_len' is a member of `struct sockaddr'. */
 #mesondefine HAVE_STRUCT_SOCKADDR_SA_LEN
 

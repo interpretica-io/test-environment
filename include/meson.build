@@ -297,6 +297,11 @@ if cc.has_member('struct sockaddr', 'sa_len', args: c_args,
     conf.set('HAVE_STRUCT_SOCKADDR_SA_LEN', 1)
 endif
 
+# xdr_char() and xdr_u_char() of Darwin store the value back on encoding
+if host_machine.system() == 'darwin'
+    conf.set('TE_XDR_CHAR_STORES_BACK', 1)
+endif
+
 #
 # Check for the Linux layout of the IPv4 header. Darwin, Solaris2 and
 # the BSDs provide 'struct ip' with differently named members instead.
