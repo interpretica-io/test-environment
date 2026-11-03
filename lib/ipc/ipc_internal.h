@@ -30,6 +30,8 @@
 #endif
 
 #include "te_stdint.h"
+#include "te_defs.h"
+#include "te_errno.h"
 #include "te_queue.h"
 
 
@@ -45,7 +47,7 @@
 #endif
 
 
-#define SUN_NAME(_p)    (((struct sockaddr_un *)(_p))->sun_path + 1)
+#define SUN_NAME(_p)    ipc_sun_name((const struct sockaddr_un *)(_p))
 
 
 #if 0
@@ -64,6 +66,60 @@ extern "C" {
 #ifndef TE_IPC_AF_UNIX
 #define TE_IPC_AF_INET
 #endif
+
+#ifdef TE_IPC_AF_UNIX
+#ifdef __linux__
+/**
+ * The names of the sockets are in the abstract namespace of Linux. The
+ * other systems lack it, and the sockets are files in IPC_SUN_DIR_FMT.
+ */
+#define IPC_SUN_ABSTRACT
+#endif
+
+/** The directory of the sockets of a user, of the uid */
+#define IPC_SUN_DIR_FMT "/tmp/te_ipc_%u"
+
+/**
+ * Make the address of a named socket.
+ *
+ * @param sa        The address.
+ * @param name      The name.
+ *
+ * @return Status code.
+ * @retval TE_ENAMETOOLONG  The name does not fit into the address.
+ */
+extern te_errno ipc_sun_set(struct sockaddr_un *sa, const char *name);
+
+/**
+ * Get the name of a named socket from its address.
+ *
+ * @param sa        The address.
+ *
+ * @return The name, empty for an unnamed socket.
+ */
+extern const char *ipc_sun_name(const struct sockaddr_un *sa);
+
+/**
+ * Bind a socket to a name.
+ *
+ * @param s         The socket.
+ * @param name      The name.
+ * @param replace   Whether to take the name of a file a closed socket
+ *                  has left (a server name), or to fail as the abstract
+ *                  namespace does.
+ *
+ * @return Status code.
+ */
+extern te_errno ipc_sun_bind(int s, const char *name, bool replace);
+
+/**
+ * Remove the file of a socket bound by ipc_sun_bind(). The abstract
+ * names go away with the socket by themselves.
+ *
+ * @param s         The socket, before it is closed.
+ */
+extern void ipc_sun_unlink(int s);
+#endif /* TE_IPC_AF_UNIX */
 
 #define IPC_RETRY   5   /**< Number of retries for connecting to server */
 #define IPC_SLEEP   1   /**< Interval (in seconds) between retries */
