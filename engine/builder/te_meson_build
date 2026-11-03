@@ -705,8 +705,11 @@ generate_config_file() {
 
     test -z "$cc" && cc="${host}-gcc"
     local dumpmachine=$($cc -dumpmachine)
-    local cpu_family="$(cut -d'-' -f1 <<<"$dumpmachine")"
-    local system="$(echo $dumpmachine | rev | cut -d'-' -f2 | rev)"
+    local fields=()
+    IFS=- read -r -a fields <<<"${dumpmachine}"
+    local cpu_family="${fields[0]}"
+    # The system is the next to last field: x86_64-pc-linux-gnu
+    local system="${fields[${#fields[@]} - 2]}"
 
     # MinGW-w64 triplets end with the runtime, not the system:
     # x86_64-w64-mingw32 is a Windows host for meson
