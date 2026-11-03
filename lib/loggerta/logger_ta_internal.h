@@ -129,8 +129,11 @@ extern "C" {
     LGR_GET_MESSAGE_ADDR((_rb), (_pos))->sequence = (_val)
 
 
-/** Type of argument native for a stack */
-typedef long ta_log_arg;
+/**
+ * Type of argument native for a stack. It holds pointers as well, and
+ * long is narrower than a pointer on 64-bit Windows.
+ */
+typedef intptr_t ta_log_arg;
 
 /*
  * It defines the structure of the message header.

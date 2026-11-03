@@ -11,6 +11,12 @@
 #ifndef __TE_RPC_SYS_POLL_H__
 #define __TE_RPC_SYS_POLL_H__
 
+#include "te_config.h"
+
+#if HAVE_STRING_H
+#include <string.h>
+#endif
+
 #include "te_rpc_defs.h"
 #ifndef WINDOWS
 #include "tarpc.h"

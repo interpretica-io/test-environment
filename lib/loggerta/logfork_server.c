@@ -232,6 +232,9 @@ logfork_entry(void)
     char  name_pid[64];
     char  msg_body[LOGFORK_MAXLEN];
     char  port[16];
+    int   rcvbuf = sizeof(logfork_msg);
+    int   cur_rcvbuf;
+    socklen_t optlen = sizeof(cur_rcvbuf);
 
     logfork_msg msg;
 
@@ -257,6 +260,24 @@ logfork_entry(void)
          */
         (void)fcntl(data.sockd, F_SETFD, FD_CLOEXEC);
 #endif
+
+        /*
+         * A whole logfork message arrives in a single datagram, and it
+         * is bigger than the default receive buffer of a UDP socket on
+         * Darwin, where an oversized datagram is dropped. The buffer is
+         * only ever enlarged, since other systems default to a much
+         * bigger one.
+         */
+        if (getsockopt(data.sockd, SOL_SOCKET, SO_RCVBUF,
+                       &cur_rcvbuf, &optlen) == 0 &&
+            cur_rcvbuf < rcvbuf &&
+            setsockopt(data.sockd, SOL_SOCKET, SO_RCVBUF,
+                       &rcvbuf, sizeof(rcvbuf)) < 0)
+        {
+            ERROR("logfork_entry(): setsockopt(SO_RCVBUF) failed; errno %d",
+                  errno);
+            break;
+        }
 
         memset(&servaddr, 0, sizeof(servaddr));
         servaddr.sin_family = AF_INET;

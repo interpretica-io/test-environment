@@ -188,6 +188,11 @@ typedef struct pam_message const pam_message_t;
 #include "netconf.h"
 #endif
 
+/*
+ * Interface and SNMP statistics are read from /proc, so they are
+ * available on Linux only.
+ */
+#ifdef __linux__
 #ifndef ENABLE_IFCONFIG_STATS
 #define ENABLE_IFCONFIG_STATS
 #endif
@@ -195,6 +200,7 @@ typedef struct pam_message const pam_message_t;
 #ifndef ENABLE_NET_SNMP_STATS
 #define ENABLE_NET_SNMP_STATS
 #endif
+#endif /* __linux__ */
 
 #ifndef IF_NAMESIZE
 #define IF_NAMESIZE IFNAMSIZ
@@ -398,11 +404,13 @@ static te_errno ip6_fw_set(const ta_conf_ctx *ctx, bool val);
 static te_errno switchdev_name_get(const ta_conf_ctx *ctx, te_string *val);
 static te_errno switchdev_name_list(const ta_conf_ctx *ctx, te_vec *names);
 
+#ifdef __linux__
 static te_errno rp_filter_all_get(const ta_conf_ctx *ctx, te_string *val);
 static te_errno rp_filter_all_set(const ta_conf_ctx *ctx, const char *val);
 
 static te_errno arp_ignore_all_get(const ta_conf_ctx *ctx, te_string *val);
 static te_errno arp_ignore_all_set(const ta_conf_ctx *ctx, const char *val);
+#endif /* __linux__ */
 
 static te_errno agent_platform_get(const ta_conf_ctx *ctx, te_string *val);
 
@@ -442,11 +450,13 @@ static const ta_conf_node *const node_lib_bin_dir =
 static const ta_conf_node *const node_dns =
     TA_CONF_RO_STR("dns", nameserver_get);
 
+#ifdef __linux__
 static const ta_conf_node *const node_rp_filter_all =
     TA_CONF_RW_STR("rp_filter_all", rp_filter_all_get, rp_filter_all_set);
 
 static const ta_conf_node *const node_arp_ignore_all =
     TA_CONF_RW_STR("arp_ignore_all", arp_ignore_all_get, arp_ignore_all_set);
+#endif /* __linux__ */
 
 static const ta_conf_node *const node_switchdev_name =
     TA_CONF_RO_COLL("switchdev_name", switchdev_name_get,
@@ -639,10 +649,13 @@ ta_unix_conf_base_init(void)
         return rc;
     if ((rc = ta_conf_register("/agent", node_dns)) != 0)
         return rc;
+#ifdef __linux__
+    /* These are the variables of Linux in /proc/sys/net/ipv4/conf */
     if ((rc = ta_conf_register("/agent", node_rp_filter_all)) != 0)
         return rc;
     if ((rc = ta_conf_register("/agent", node_arp_ignore_all)) != 0)
         return rc;
+#endif
 
     if ((rc = ta_unix_conf_interface_init()) != 0)
         return rc;
@@ -721,8 +734,10 @@ rcf_ch_conf_init(void)
         if (ta_unix_conf_route_init() != 0)
             goto fail;
 
+#ifdef __linux__
         if (ta_unix_conf_rule_init() != 0)
             goto fail;
+#endif
 
         if (ta_unix_conf_vm_init() != 0)
             goto fail;
@@ -764,8 +779,10 @@ rcf_ch_conf_init(void)
             goto fail;
 #endif
 
+#ifdef __linux__
         if (ta_unix_conf_cpu_init() != 0)
             goto fail;
+#endif
 
 #ifdef ENABLE_VCM_SUPPORT
         if (ta_unix_conf_vcm_init() != 0)
@@ -788,6 +805,12 @@ rcf_ch_conf_init(void)
             goto fail;
 #endif
 
+        /*
+         * Configuration objects below are built on top of Linux kernel
+         * interfaces and are compiled in on Linux only, see
+         * agents/unix/conf/meson.build.
+         */
+#ifdef __linux__
         if (ta_unix_conf_memory_init() != 0)
             goto fail;
 
@@ -836,6 +859,7 @@ rcf_ch_conf_init(void)
 
         if (ta_unix_conf_loadavg_init() != 0)
             goto fail;
+#endif /* __linux__ */
 
         rcf_pch_rsrc_init();
 
@@ -876,6 +900,12 @@ rcf_ch_conf_init(void)
         }
 #endif /* WITH_SOCKS */
 
+        /*
+         * Configuration objects below are built on top of Linux kernel
+         * interfaces and are compiled in on Linux only, see
+         * agents/unix/conf/meson.build.
+         */
+#ifdef __linux__
         if (ta_unix_conf_macvlan_init() != 0)
         {
             ERROR("Failed to add macvlan interface configuration subtree");
@@ -925,6 +955,7 @@ rcf_ch_conf_init(void)
             ERROR("Failed to add bridge interfaces configuration subtree");
             goto fail;
         }
+#endif /* __linux__ */
 
         if (ta_unix_conf_rlimits_init() != 0)
         {
@@ -948,11 +979,13 @@ rcf_ch_conf_init(void)
         }
 #endif /* WITH_TC */
 
+#ifdef __linux__
         if (ta_unix_conf_block_dev_init() != 0)
         {
             ERROR("Failed to add block devices subtree");
             goto fail;
         }
+#endif /* __linux__ */
 
 #ifdef WITH_BPF
         if (ta_unix_conf_bpf_init() != 0)
@@ -967,8 +1000,10 @@ rcf_ch_conf_init(void)
             goto fail;
 #endif
 
+#ifdef __linux__
         if (ta_unix_conf_l4_port_init() != 0)
             goto fail;
+#endif
 
         if (ta_unix_conf_key_init() != 0)
             goto fail;
@@ -1046,11 +1081,15 @@ rcf_ch_conf_fini(void)
     ta_unix_conf_pci_cleanup();
 #endif
 
+#ifdef __linux__
     ta_unix_conf_memory_cleanup();
+#endif
 
     ta_unix_conf_key_fini();
 
+#ifdef __linux__
    (void)ta_unix_conf_sys_tree_fini();
+#endif
 
     ta_unix_conf_cmd_monitor_cleanup();
     if (cfg_socket >= 0)
@@ -1768,6 +1807,7 @@ switchdev_name_list(const ta_conf_ctx *ctx, te_vec *names)
     return 0;
 }
 
+#ifdef __linux__
 /**
  * Get RPF filtering value for interface "all"
  *
@@ -1827,6 +1867,7 @@ arp_ignore_all_set(const ta_conf_ctx *ctx, const char *val)
     UNUSED(ctx);
     return arp_ignore_set_core("all", val);
 }
+#endif /* __linux__ */
 
 static te_errno
 agent_platform_get(const ta_conf_ctx *ctx, te_string *val)

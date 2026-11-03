@@ -53,6 +53,11 @@
 #include "tapi_cfg_base.h"
 #include "tapi_cfg.h"
 
+/* The length of an Ethernet address, which Linux names so in <net/if.h> */
+#ifndef IFHWADDRLEN
+#define IFHWADDRLEN 6
+#endif
+
 /** Operations with routing/ARP table */
 enum tapi_cfg_oper {
     OP_ADD,   /**< Add operation */

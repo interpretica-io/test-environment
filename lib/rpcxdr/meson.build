@@ -25,9 +25,20 @@ deps += [ dep_rpcs ]
 # - Solaris2 (SunOS 5.11) -lnsl
 # - Modern Linux distros, such as Fedora 28, do not have RPC support
 #   in glibc; libtirpc can be used instead.
+# - Darwin and Solaris2 keep the XDR routines in -lc, so the check has
+#   to record that they are available, not only that an extra library
+#   has been found.
 #
+# A native Windows C library has no XDR, TE provides its own one there
+compat_xdr = host_windows
+
 rpc_lib_found = false
-if not cc.has_function('xdr_bytes', args: te_cflags, dependencies: deps)
+if compat_xdr
+    includes += include_directories('compat')
+    sources += files('compat/xdr.c')
+elif cc.has_function('xdr_bytes', args: te_cflags, dependencies: deps)
+    rpc_lib_found = true
+else
     dep_rpc = cc.find_library('rpc', required: false)
     if dep_rpc.found() and cc.has_function('xdr_bytes', args: te_cflags,
                                            dependencies: dep_rpc)
@@ -47,20 +58,28 @@ if not cc.has_function('xdr_bytes', args: te_cflags, dependencies: deps)
     endif
 endif
 
-# These headers are present in corresponding dependencies, but not globally, so
-# it makes more sense to check for them with full dependency set
-if cc.has_header('rpc/types.h', dependencies: deps)
-    have = 'HAVE_RPC_TYPES_H'
-    conf.set(have, 1)
-    c_args += [ '-D' + have ]
-endif
-if cc.has_header('rpc/xdr.h', dependencies: deps)
-    have = 'HAVE_RPC_XDR_H'
-    conf.set(have, 1)
-    c_args += [ '-D' + have ]
-endif
+if compat_xdr
+    foreach have : [ 'HAVE_RPC_TYPES_H', 'HAVE_RPC_XDR_H' ]
+        conf.set(have, 1)
+        c_args += [ '-D' + have ]
+    endforeach
+    conf.set('x_int32_arg_t', 'int32_t')
+else
+    # These headers are present in corresponding dependencies, but not
+    # globally, so it makes more sense to check for them with full
+    # dependency set
+    if cc.has_header('rpc/types.h', dependencies: deps)
+        have = 'HAVE_RPC_TYPES_H'
+        conf.set(have, 1)
+        c_args += [ '-D' + have ]
+    endif
+    if cc.has_header('rpc/xdr.h', dependencies: deps)
+        have = 'HAVE_RPC_XDR_H'
+        conf.set(have, 1)
+        c_args += [ '-D' + have ]
+    endif
 
-rpc_headers = '''
+    rpc_headers = '''
 #if HAVE_RPC_TYPES_H
 #include <rpc/types.h>
 #endif
@@ -68,13 +87,14 @@ rpc_headers = '''
 #include <rpc/xdr.h>
 #endif
 '''
-if cc.has_member('struct xdr_ops', 'x_putint32', args: c_args,
-                 prefix: rpc_headers, dependencies: deps)
-    conf.set('x_int32_arg_t', 'int32_t')
-else
-    conf.set('x_putint32', 'x_putlong')
-    conf.set('x_getint32', 'x_getlong')
-    conf.set('x_int32_arg_t', 'long')
+    if cc.has_member('struct xdr_ops', 'x_putint32', args: c_args,
+                     prefix: rpc_headers, dependencies: deps)
+        conf.set('x_int32_arg_t', 'int32_t')
+    else
+        conf.set('x_putint32', 'x_putlong')
+        conf.set('x_getint32', 'x_getlong')
+        conf.set('x_int32_arg_t', 'long')
+    endif
 endif
 
 if rpc_lib_found
@@ -179,6 +199,8 @@ headers += files('rpc_xdr.h')
 
 sources += files('rpc_xdr.c', 'xml_xdr.c')
 sources += rpc_xdr
+# The table goes into the server-side library separately, see below
+sources_no_tbl = sources
 sources += rpc_tbl
 
 c_args += [
@@ -189,7 +211,24 @@ c_args += [
 deps += [ rpc_h_dep ]
 
 # Build server-side rpcxdr library here
-te_lib_rpcxdrta = static_library('rpcxdrta', sources, rpc_stub,
+ta_sources = sources + [ rpc_stub ]
+if host_windows
+    #
+    # The RPC table refers to the weak stubs. GNU ld for PE resolves such
+    # a reference only within the object which defines the stub, up to
+    # 2.42 at least, so the table and the stubs are one source there.
+    # The reference to a stub the agent overrides is still wrong, see
+    # rpc_win32_func() in lib/rpcserver/rpc_server.c.
+    #
+    rpc_tbl_stub = custom_target('gen-tarpc-rpctbl-stub',
+                                 input: [ rpc_stub, rpc_tbl ],
+                                 output: [ 'tarpc_rpctbl_stub.c' ],
+                                 capture: true,
+                                 command: [ 'cat', '@INPUT@' ])
+    ta_sources = sources_no_tbl + [ rpc_tbl_stub ]
+endif
+
+te_lib_rpcxdrta = static_library('rpcxdrta', ta_sources,
                                  install: install_lib,
                                  include_directories: includes,
                                  c_args: [ '-DTE_DUMMY', c_args ],

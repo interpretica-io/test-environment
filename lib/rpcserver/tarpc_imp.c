@@ -116,337 +116,6 @@ extern char **environ;
 #define SOLARIS false
 #endif
 
-/** Entry in a queue of FD close hooks */
-typedef struct close_fd_hook_entry {
-    TAILQ_ENTRY(close_fd_hook_entry)   links;  /**< Queue links */
-    tarpc_close_fd_hook               *hook;   /**< Hook function pointer */
-    void                              *cookie; /**< Pointer which should be
-                                                    passed to each hook
-                                                    invocation */
-} close_fd_hook_entry;
-
-/** Hooks called just before closing FD */
-static TAILQ_HEAD(close_fd_hook_entries,
-                  close_fd_hook_entry) close_fd_hooks =
-                              TAILQ_HEAD_INITIALIZER(close_fd_hooks);
-
-/** Lock protecting close_fd_hooks */
-static pthread_mutex_t      close_fd_hooks_lock = PTHREAD_MUTEX_INITIALIZER;
-
-extern sigset_t         rpcs_received_signals;
-extern tarpc_siginfo_t  last_siginfo;
-
-static bool dynamic_library_set = false;
-static char      dynamic_library_name[RCF_MAX_PATH];
-static void     *dynamic_library_handle = NULL;
-
-/* See description in rpc_server.h */
-void
-tarpc_close_fd_hooks_call(int fd)
-{
-    int                  res = 0;
-    close_fd_hook_entry *entry;
-
-    /*
-     * It seems safe to check this without mutex protection,
-     * and it will allow to avoid mutex locking/unlocking in case
-     * there is no hooks.
-     */
-    if (TAILQ_EMPTY(&close_fd_hooks))
-        return;
-
-    res = tarpc_mutex_lock(&close_fd_hooks_lock);
-    if (res != 0)
-        return;
-
-    TAILQ_FOREACH(entry, &close_fd_hooks, links)
-    {
-        entry->hook(fd, entry->cookie);
-    }
-
-    tarpc_mutex_unlock(&close_fd_hooks_lock);
-}
-
-/* See description in rpc_server.h */
-int
-tarpc_close_fd_hook_register(tarpc_close_fd_hook *hook, void *cookie)
-{
-    close_fd_hook_entry *entry;
-    int                  rc;
-
-    if (hook == NULL)
-    {
-        te_rpc_error_set(TE_RC(TE_TA_UNIX, TE_EINVAL),
-                         "%s(): hook cannot be NULL",
-                         __FUNCTION__);
-        return -1;
-    }
-
-    entry = TE_ALLOC(sizeof(*entry));
-    entry->hook = hook;
-    entry->cookie = cookie;
-
-    rc = tarpc_mutex_lock(&close_fd_hooks_lock);
-    if (rc != 0)
-    {
-        free(entry);
-        return -1;
-    }
-    TAILQ_INSERT_TAIL(&close_fd_hooks, entry, links);
-    tarpc_mutex_unlock(&close_fd_hooks_lock);
-
-    return 0;
-}
-
-/* See description in rpc_server.h */
-int
-tarpc_close_fd_hook_unregister(tarpc_close_fd_hook *hook, void *cookie)
-{
-    close_fd_hook_entry *entry;
-    bool found = false;
-    int                  rc;
-
-    rc = tarpc_mutex_lock(&close_fd_hooks_lock);
-    if (rc != 0)
-        return -1;
-
-    /*
-     * List is walked in reverse order so that the last added hook
-     * is unregistered firstly (in case of hooks duplication).
-     */
-    TAILQ_FOREACH_REVERSE(entry, &close_fd_hooks, close_fd_hook_entries,
-                          links)
-    {
-        if (entry->hook == hook && entry->cookie == cookie)
-        {
-            found = true;
-            TAILQ_REMOVE(&close_fd_hooks, entry, links);
-            free(entry);
-            break;
-        }
-    }
-
-    tarpc_mutex_unlock(&close_fd_hooks_lock);
-
-    if (!found)
-    {
-        te_rpc_error_set(TE_RC(TE_TA_UNIX, TE_ENOENT),
-                         "%s(): failed to find hook %p",
-                         __FUNCTION__, hook);
-        return -1;
-    }
-
-    return 0;
-}
-
-/* See description in rpc_server.h */
-int
-tarpc_call_close_with_hooks(api_func close_func, int fd)
-{
-    tarpc_close_fd_hooks_call(fd);
-    return close_func(fd);
-}
-
-/**
- * Set name of the dynamic library to be used to resolve function
- * called via RPC.
- *
- * @param libname       Full name of the dynamic library or NULL
- *
- * @return Status code.
- *
- * @note The dynamic library is opened with RTLD_NODELETE flag.
- * This flag is necessary for all libraries using atfork since there is no
- * way to undo the atfork call.  This flag is also necessary if the library
- * does not have correct _fini.  See man dlopen of other details.
- */
-te_errno
-tarpc_setlibname(const char *libname)
-{
-    extern int (*tce_notify_function)(void);
-    extern int (*tce_get_peer_function)(void);
-    extern const char *(*tce_get_conn_function)(void);
-
-    void (*tce_initializer)(const char *, int) = NULL;
-
-    if (libname == NULL)
-        libname = "";
-
-    if (dynamic_library_set)
-    {
-        char *old = getenv("TARPC_DL_NAME");
-
-        if (old == NULL)
-        {
-            ERROR("Inconsistent state of dynamic library flag and "
-                  "Environment");
-            return TE_RC(TE_TA_UNIX, TE_EFAULT);
-        }
-        if (strcmp(libname, old) == 0)
-        {
-            /* It is OK, if we try to set the same library once more */
-            return 0;
-        }
-        ERROR("Dynamic library has already been set to %s", old);
-        return TE_RC(TE_TA_UNIX, TE_EEXIST);
-    }
-    dynamic_library_handle = dlopen(*libname == '\0' ? NULL : libname,
-                                    RTLD_LAZY
-#ifdef HAVE_RTLD_NODELETE
-                                    | RTLD_NODELETE
-#endif
-                                    );
-    if (dynamic_library_handle == NULL)
-    {
-        if (*libname == 0)
-        {
-            dynamic_library_set = true;
-            return 0;
-        }
-        ERROR("Cannot load shared library '%s': %s", libname, dlerror());
-        return TE_RC(TE_TA_UNIX, TE_ENOENT);
-    }
-    if (setenv("TARPC_DL_NAME", libname, 1) != 0)
-    {
-        ERROR("No enough space in environment to save dynamic library "
-              "'%s' name", libname);
-        (void)dlclose(dynamic_library_handle);
-        dynamic_library_handle = NULL;
-        return TE_RC(TE_TA_UNIX, TE_ENOSPC);
-    }
-    dynamic_library_set = true;
-    TE_STRLCPY(dynamic_library_name, libname,
-               sizeof(dynamic_library_name));
-    RING("Dynamic library is set to '%s'", libname);
-
-    if (tce_get_peer_function != NULL)
-    {
-        tce_initializer = dlsym(dynamic_library_handle,
-                                "__bb_init_connection");
-        if (tce_initializer != NULL)
-        {
-            const char *ptc = tce_get_conn_function();
-
-            if (ptc == NULL)
-                WARN("tce_init_connect() has not been called");
-            else
-            {
-                if (tce_notify_function != NULL)
-                    tce_notify_function();
-                tce_initializer(ptc, tce_get_peer_function());
-                RING("TCE initialized for dynamic library '%s'",
-                     getenv("TARPC_DL_NAME"));
-            }
-        }
-    }
-
-    return 0;
-}
-
-/* See the description in tarpc_server.h */
-bool
-tarpc_dynamic_library_loaded(void)
-{
-    return dynamic_library_set && dynamic_library_handle != NULL;
-}
-
-/**
- * Find the function by its name.
- *
- * @param lib_flags     how to resolve function name
- * @param name          function name
- * @param func          location for function address
- *
- * @return status code
- */
-int
-tarpc_find_func(tarpc_lib_flags lib_flags, const char *name, api_func *func)
-{
-    te_errno    rc;
-    void       *handle;
-    char       *tarpc_dl_name;
-
-    *func = NULL;
-
-    tarpc_dl_name = getenv("TARPC_DL_NAME");
-    if (!dynamic_library_set && tarpc_dl_name != NULL &&
-        (rc = tarpc_setlibname(tarpc_dl_name)) != 0)
-    {
-        /* Error is always logged from tarpc_setlibname() */
-        return rc;
-    }
-#if defined (__QNX__)
-    /*
-     * QNX may set errno to ESRCH even after successful
-     * call to 'getenv'.
-     */
-    errno = 0;
-#endif
-
-#define TARPC_MAX_FUNC_NAME 64
-
-    if (lib_flags & TARPC_LIB_USE_SYSCALL)
-    {
-        char func_syscall_wrap_name[TARPC_MAX_FUNC_NAME] = {0};
-
-        if ((lib_flags & TARPC_LIB_USE_LIBC) || !tarpc_dynamic_library_loaded())
-            TE_SPRINTF(func_syscall_wrap_name, "%s_te_wrap_syscall", name);
-        else
-            TE_SPRINTF(func_syscall_wrap_name, "%s_te_wrap_syscall_dl", name);
-
-        if ((*func = rcf_ch_symbol_addr(func_syscall_wrap_name, 1)) != NULL)
-            return 0;
-
-        /* Wrapper was not found, continues to standard name resolving */
-    }
-
-    if ((lib_flags & TARPC_LIB_USE_LIBC) || !tarpc_dynamic_library_loaded())
-    {
-        static void *libc_handle = NULL;
-        static bool dlopen_null = false;
-
-        if (dlopen_null)
-            goto try_ta_symtbl;
-
-        if (libc_handle == NULL)
-        {
-            if ((libc_handle = dlopen(NULL, RTLD_LAZY)) == NULL)
-            {
-                dlopen_null = true;
-                goto try_ta_symtbl;
-            }
-        }
-        handle = libc_handle;
-        VERB("Call from libc");
-    }
-    else
-    {
-        /*
-         * We get this branch of the code only if user set some
-         * library to be used with tarpc_setlibname() function earlier,
-         * and so we should use it to find symbol.
-         */
-        assert(dynamic_library_set == true);
-        assert(dynamic_library_handle != NULL);
-
-        handle = dynamic_library_handle;
-        VERB("Call from registered library");
-    }
-
-    *func = dlsym(handle, name);
-
-try_ta_symtbl:
-    if (*func == NULL)
-    {
-        if ((*func = rcf_ch_symbol_addr(name, 1)) == NULL)
-        {
-            ERROR("Cannot resolve symbol %s", name);
-            return TE_RC(TE_TA_UNIX, TE_ENOENT);
-        }
-    }
-    return 0;
-}
-
 /**
  * Log a file descriptor set after call for descriptor monitor functions like
  * select() or poll().
@@ -576,195 +245,6 @@ handler2name(void *handler)
     }
 
     return tmp;
-}
-
-
-/*-------------- setlibname() -----------------------------*/
-
-bool_t
-_setlibname_1_svc(tarpc_setlibname_in *in, tarpc_setlibname_out *out,
-                 struct svc_req *rqstp)
-{
-    UNUSED(rqstp);
-    memset(out, 0, sizeof(*out));
-    VERB("PID=%d TID=%llu: Entry %s",
-         (int)getpid(), (unsigned long long int)pthread_self(),
-         "setlibname");
-
-    out->common._errno = tarpc_setlibname((in->libname.libname_len == 0) ?
-                                          NULL : in->libname.libname_val);
-    out->retval = (out->common._errno == 0) ? 0 : -1;
-    out->common.duration = 0;
-
-    return true;
-}
-
-/*-------------- rpc_find_func() ----------------------*/
-
-bool_t
-_rpc_find_func_1_svc(tarpc_rpc_find_func_in  *in,
-                     tarpc_rpc_find_func_out *out,
-                     struct svc_req          *rqstp)
-{
-    api_func func;
-
-    UNUSED(rqstp);
-
-    memset(out, 0, sizeof(*out));
-
-    out->find_result = tarpc_find_func(in->common.lib_flags,
-                                       in->func_name, &func);
-    return true;
-}
-
-/*-------------- sizeof() -------------------------------*/
-#define MAX_TYPE_NAME_SIZE 30
-typedef struct {
-    char           type_name[MAX_TYPE_NAME_SIZE];
-    tarpc_ssize_t  type_size;
-} type_info_t;
-
-static type_info_t type_info[] =
-{
-    {"bool", sizeof(bool)},
-    {"te_bool", sizeof(bool)},
-    {"char", sizeof(char)},
-    {"short", sizeof(short)},
-    {"int", sizeof(int)},
-    {"long", sizeof(long)},
-    {"long long", sizeof(long long)},
-    {"te_errno", sizeof(te_errno)},
-    {"size_t", sizeof(size_t)},
-    {"socklen_t", sizeof(socklen_t)},
-    {"struct timeval", sizeof(struct timeval)},
-   {"struct linger", sizeof(struct linger)},
-    {"struct in_addr", sizeof(struct in_addr)},
-    {"struct ip_mreq", sizeof(struct ip_mreq)},
-    {"struct tcp_info", sizeof(struct tcp_info)},
-    {"struct ip_mreq_source", sizeof(struct ip_mreq_source)},
-#if HAVE_STRUCT_IP_MREQN
-    {"struct ip_mreqn", sizeof(struct ip_mreqn)},
-#endif
-    {"struct sockaddr", sizeof(struct sockaddr)},
-    {"struct sockaddr_in", sizeof(struct sockaddr_in)},
-    {"struct sockaddr_in6", sizeof(struct sockaddr_in6)},
-    {"struct sockaddr_storage", sizeof(struct sockaddr_storage)},
-    {"struct cmsghdr", sizeof(struct cmsghdr)},
-    {"struct msghdr", sizeof(struct msghdr)},
-};
-
-/*-------------- get_sizeof() ---------------------------------*/
-bool_t
-_get_sizeof_1_svc(tarpc_get_sizeof_in *in, tarpc_get_sizeof_out *out,
-                  struct svc_req *rqstp)
-{
-    uint32_t i;
-
-    UNUSED(rqstp);
-
-    out->size = -1;
-
-    if (in->typename == NULL)
-    {
-        ERROR("Name of type not specified");
-        return false;
-    }
-
-    if (in->typename[0] == '*')
-    {
-        out->size = sizeof(void *);
-        return true;
-    }
-
-    for (i = 0; i < sizeof(type_info) / sizeof(type_info_t); i++)
-    {
-        if (strcmp(in->typename, type_info[i].type_name) == 0)
-        {
-            out->size = type_info[i].type_size;
-            return true;
-        }
-    }
-
-    ERROR("Unknown type (%s)", in->typename);
-#if 0
-    out->common._errno = TE_RC(TE_TA_UNIX, TE_EINVAL);
-#endif
-    return true;
-}
-
-/*-------------- get_addrof() ---------------------------------*/
-bool_t
-_get_addrof_1_svc(tarpc_get_addrof_in *in, tarpc_get_addrof_out *out,
-                  struct svc_req *rqstp)
-{
-    void *addr = rcf_ch_symbol_addr(in->name, 0);
-
-    UNUSED(rqstp);
-
-    out->addr = addr == NULL ? 0 : rcf_pch_mem_alloc(addr);
-
-    return true;
-}
-
-/*-------------- get_var() ---------------------------------*/
-bool_t
-_get_var_1_svc(tarpc_get_var_in *in, tarpc_get_var_out *out,
-                   struct svc_req *rqstp)
-{
-    void *addr = rcf_ch_symbol_addr(in->name, 0);
-
-    UNUSED(rqstp);
-
-    if (addr == NULL)
-    {
-        ERROR("Variable %s is not found", in->name);
-        out->found = false;
-        return true;
-    }
-
-    out->found = true;
-
-    switch (in->size)
-    {
-        case 1: out->val = *(uint8_t *)addr; break;
-        case 2: out->val = *(uint16_t *)addr; break;
-        case 4: out->val = *(uint32_t *)addr; break;
-        case 8: out->val = *(uint64_t *)addr; break;
-        default: return false;
-    }
-
-    return true;
-}
-
-/*-------------- set_var() ---------------------------------*/
-bool_t
-_set_var_1_svc(tarpc_set_var_in *in, tarpc_set_var_out *out,
-               struct svc_req *rqstp)
-{
-    void *addr = rcf_ch_symbol_addr(in->name, 0);
-
-    UNUSED(rqstp);
-    UNUSED(out);
-
-    if (addr == NULL)
-    {
-        ERROR("Variable %s is not found", in->name);
-        out->found = false;
-        return true;
-    }
-
-    out->found = true;
-
-    switch (in->size)
-    {
-        case 1: *(uint8_t *)addr  = in->val; break;
-        case 2: *(uint16_t *)addr = in->val; break;
-        case 4: *(uint32_t *)addr = in->val; break;
-        case 8: *(uint64_t *)addr = in->val; break;
-        default: return false;
-    }
-
-    return true;
 }
 
 /*-------------- create_process() ---------------------------------*/
@@ -909,7 +389,7 @@ _thread_create_1_svc(tarpc_thread_create_in *in,
                                  strdup(in->name.name_val));
 
     if (out->retval == 0)
-        out->tid = (tarpc_pthread_t)tid;
+        out->tid = TARPC_PTHREAD_T_H2RPC(tid);
 
     return true;
 }
@@ -923,7 +403,7 @@ _thread_cancel_1_svc(tarpc_thread_cancel_in *in,
     UNUSED(rqstp);
     memset(out, 0, sizeof(*out));
 
-    out->retval = pthread_cancel((pthread_t)in->tid);
+    out->retval = pthread_cancel(TARPC_PTHREAD_T(in->tid));
 
     return true;
 }
@@ -937,7 +417,7 @@ _thread_join_1_svc(tarpc_thread_join_in *in,
     UNUSED(rqstp);
     memset(out, 0, sizeof(*out));
 
-    out->retval = pthread_join((pthread_t)in->tid, NULL);
+    out->retval = pthread_join(TARPC_PTHREAD_T(in->tid), NULL);
     return true;
 }
 
@@ -1062,14 +542,14 @@ TARPC_FUNC(getpid, {}, { MAKE_CALL(out->retval = func_void()); })
 /*-------------- pthread_self() --------------------------*/
 TARPC_FUNC(pthread_self, {},
 {
-    MAKE_CALL(out->retval = (tarpc_pthread_t)func());
+    MAKE_CALL(out->retval = TARPC_PTHREAD_T_H2RPC(func()));
 }
 )
 
 /*-------------- pthread_cancel() --------------------------*/
 TARPC_FUNC(pthread_cancel, {},
 {
-    MAKE_CALL(out->retval = func(in->tid));
+    MAKE_CALL(out->retval = func(TARPC_PTHREAD_T(in->tid)));
     if (out->retval != 0)
     {
         te_rpc_error_set(TE_OS_RC(TE_RPC, out->retval), "");
@@ -1116,7 +596,7 @@ TARPC_FUNC(pthread_setcanceltype, {},
 TARPC_FUNC(pthread_join, {},
 {
     void *p;
-    MAKE_CALL(out->retval = func(in->tid, &p));
+    MAKE_CALL(out->retval = func(TARPC_PTHREAD_T(in->tid), &p));
     out->ret = (uintptr_t)p;
     if (out->retval != 0)
     {
@@ -1205,6 +685,7 @@ TARPC_FUNC(dup2, {},
 })
 
 /*-------------- dup3() -------------------------------*/
+#if HAVE_DUP3
 
 TARPC_FUNC(dup3, {},
 {
@@ -1213,6 +694,8 @@ TARPC_FUNC(dup3, {},
     MAKE_CALL(out->fd = func(in->oldfd, in->newfd, in->flags));
 }
 )
+
+#endif /* HAVE_DUP3 */
 
 /*-------------- close() ------------------------------*/
 
@@ -1328,6 +811,7 @@ TARPC_FUNC(accept,
 )
 
 /*-------------- accept4() ------------------------------*/
+#if HAVE_ACCEPT4
 
 TARPC_FUNC(accept4,
 {
@@ -1348,6 +832,8 @@ TARPC_FUNC(accept4,
                           &(out->addr));
 }
 )
+
+#endif /* HAVE_ACCEPT4 */
 
 /*-------------- socket_connect_close() -----------------------*/
 int
@@ -1478,9 +964,15 @@ recvfrom_rpc_handler(int fd, void *buf, size_t len, size_t rlen,
     TARPC_FIND_FUNC_RETURN(lib_flags, func_name, &recvfrom_func);
 
     if (chk_func)
-        return recvfrom_func(fd, buf, len, rlen, flags, addr, addrlen);
+        return TE_FUNC_CAST(ssize_t (*)(int, void *, size_t, size_t, int,
+                                        struct sockaddr *, socklen_t *),
+                            recvfrom_func)(fd, buf, len, rlen, flags,
+                                           addr, addrlen);
     else
-        return recvfrom_func(fd, buf, len, flags, addr, addrlen);
+        return TE_FUNC_CAST(ssize_t (*)(int, void *, size_t, int,
+                                        struct sockaddr *, socklen_t *),
+                            recvfrom_func)(fd, buf, len, flags,
+                                           addr, addrlen);
 }
 
 TARPC_FUNC_STANDALONE(recvfrom,
@@ -1572,9 +1064,11 @@ recv_rpc_handler(int fd, void *buf, size_t len, size_t rlen,
     TARPC_FIND_FUNC_RETURN(lib_flags, func_name, &recv_func);
 
     if (chk_func)
-        return recv_func(fd, buf, len, rlen, flags);
+        return TE_FUNC_CAST(ssize_t (*)(int, void *, size_t, size_t, int),
+                            recv_func)(fd, buf, len, rlen, flags);
     else
-        return recv_func(fd, buf, len, flags);
+        return TE_FUNC_CAST(ssize_t (*)(int, void *, size_t, int),
+                            recv_func)(fd, buf, len, flags);
 }
 
 TARPC_FUNC_STANDALONE(recv,
@@ -1682,14 +1176,16 @@ te_fstat(tarpc_lib_flags lib_flags, int fd, rpc_stat *rpcbuf)
     FSTAT_COPY(rpcbuf, buf);
     return 0;
 #else
-    UNUSED(lib_flags);
-    UNUSED(rpcbuf);
+    struct stat buf;
 
-/*
- * #error "fstat family is not currently supported for non-linux unixes."
-*/
-    errno = EOPNOTSUPP;
-    return -1;
+    UNUSED(lib_flags);
+
+    memset(&buf, 0, sizeof(buf));
+    if (fstat(fd, &buf) < 0)
+        return -1;
+
+    FSTAT_COPY(rpcbuf, buf);
+    return 0;
 #endif
 }
 
@@ -1738,15 +1234,8 @@ te_fstat64(tarpc_lib_flags lib_flags, int fd, rpc_stat *rpcbuf)
     FSTAT_COPY(rpcbuf, buf);
     return 0;
 #else
-/*
- * #error "fstat family is not currently supported for non-linux unixes."
- */
-    UNUSED(lib_flags);
-    UNUSED(fd);
-    UNUSED(rpcbuf);
-
-    ERROR("fstat64 is not supported");
-    return -1;
+    /* fstat() of macOS, the BSDs and 64-bit Linux has 64-bit sizes */
+    return te_fstat(lib_flags, fd, rpcbuf);
 #endif
 }
 
@@ -2037,9 +1526,11 @@ read_rpc_handler(int fd, void *buf, size_t len, size_t rlen,
     TARPC_FIND_FUNC_RETURN(lib_flags, func_name, &read_func);
 
     if (chk_func)
-        return read_func(fd, buf, len, rlen);
+        return TE_FUNC_CAST(ssize_t (*)(int, void *, size_t, size_t),
+                            read_func)(fd, buf, len, rlen);
     else
-        return read_func(fd, buf, len);
+        return TE_FUNC_CAST(ssize_t (*)(int, void *, size_t),
+                            read_func)(fd, buf, len);
 }
 
 TARPC_FUNC_STANDALONE(read,
@@ -2084,9 +1575,11 @@ pread_rpc_handler(int fd, void *buf, size_t len, off_t offset, size_t rlen,
     TARPC_FIND_FUNC_RETURN(lib_flags, func_name, &pread_func);
 
     if (chk_func)
-        return pread_func(fd, buf, len, offset, rlen);
+        return TE_FUNC_CAST(ssize_t (*)(int, void *, size_t, off_t, size_t),
+                            pread_func)(fd, buf, len, offset, rlen);
     else
-        return pread_func(fd, buf, len, offset);
+        return TE_FUNC_CAST(ssize_t (*)(int, void *, size_t, off_t),
+                            pread_func)(fd, buf, len, offset);
 }
 
 TARPC_FUNC_STANDALONE(pread,
@@ -3059,7 +2552,8 @@ do_fd_isset(tarpc_do_fd_isset_in *in,
             tarpc_do_fd_isset_out *out)
 {
     RPC_PCH_MEM_WITH_NAMESPACE(ns, RPC_TYPE_NS_FD_SET, {
-        out->retval = FD_ISSET(in->fd, IN_FDSET_NS(ns));
+        /* Darwin and the BSDs return the bit of the descriptor */
+        out->retval = FD_ISSET(in->fd, IN_FDSET_NS(ns)) ? 1 : 0;
     });
 }
 
@@ -3347,7 +2841,7 @@ sigset_cmp(sigset_t *sig_first, sigset_t *sig_second)
     int          in_second;
     int          saved_errno = errno;
 
-    for (i = 1; i <= SIGRTMAX; i++)
+    for (i = 1; i <= TARPC_SIGNUM_MAX; i++)
     {
         in_first = sigismember(sig_first, i);
         in_second = sigismember(sig_second, i);
@@ -3383,7 +2877,8 @@ TARPC_FUNC(kill, {},
 
 TARPC_FUNC(pthread_kill, {},
 {
-    MAKE_CALL(out->retval = func(in->tid, signum_rpc2h(in->signum)));
+    MAKE_CALL(out->retval = func(TARPC_PTHREAD_T(in->tid),
+                                 signum_rpc2h(in->signum)));
 }
 )
 
@@ -5440,7 +4935,12 @@ TARPC_FUNC(ioctl,
         req_ptr = NULL;
     }
 
-    MAKE_CALL(out->retval = func(in->s, native_code, req_ptr));
+    /*
+     * The requests of Darwin and the BSDs have the top bit set: keep them
+     * from the sign extension to unsigned long, which the call takes.
+     */
+    MAKE_CALL(out->retval = func(in->s, (unsigned int)native_code,
+                                 req_ptr));
     if (req_ptr != NULL)
     {
         rc = tarpc_ioctl_post(in, out, req_ptr);
@@ -5485,13 +4985,6 @@ msghdr2str(const struct msghdr *msg)
 
     return buf;
 }
-
-#if !HAVE_STRUCT_MMSGHDR
-struct mmsghdr {
-    struct msghdr msg_hdr;  /* Message header */
-    unsigned int  msg_len;  /* Number of received bytes for header */
-};
-#endif
 
 static const char *
 mmsghdr2str(const struct mmsghdr *mmsg, int len)
@@ -5633,9 +5126,11 @@ poll_rpc_handler(struct pollfd *fds, unsigned int nfds,
     TARPC_FIND_FUNC_RETURN(lib_flags, func_name, (api_func *)&poll_func);
 
     if (chk_func)
-        return poll_func(fds, nfds, timeout, fdslen);
+        return TE_FUNC_CAST(int (*)(struct pollfd *, nfds_t, int, size_t),
+                            poll_func)(fds, nfds, timeout, fdslen);
     else
-        return poll_func(fds, nfds, timeout);
+        return TE_FUNC_CAST(int (*)(struct pollfd *, nfds_t, int),
+                            poll_func)(fds, nfds, timeout);
 }
 
 TARPC_FUNC_STANDALONE(poll,
@@ -5717,9 +5212,15 @@ ppoll_rpc_handler(struct pollfd *fds, unsigned int nfds,
     TARPC_FIND_FUNC_RETURN(lib_flags, func_name, (api_func *)&ppoll_func);
 
     if (chk_func)
-        return ppoll_func(fds, nfds, ts, sigmask, fdslen);
+        return TE_FUNC_CAST(int (*)(struct pollfd *, nfds_t,
+                                    const struct timespec *,
+                                    const sigset_t *, size_t),
+                            ppoll_func)(fds, nfds, ts, sigmask, fdslen);
     else
-        return ppoll_func(fds, nfds, ts, sigmask);
+        return TE_FUNC_CAST(int (*)(struct pollfd *, nfds_t,
+                                    const struct timespec *,
+                                    const sigset_t *),
+                            ppoll_func)(fds, nfds, ts, sigmask);
 }
 
 TARPC_FUNC_STANDALONE(ppoll,
@@ -6283,6 +5784,7 @@ TARPC_FUNC(pipe,
 
 
 /*-------------- pipe2() --------------------------------*/
+#if HAVE_PIPE2
 TARPC_FUNC(pipe2,
 {
     COPY_ARG(filedes);
@@ -6293,6 +5795,8 @@ TARPC_FUNC(pipe2,
                                      in->flags));
 }
 )
+
+#endif /* HAVE_PIPE2 */
 
 /*-------------- socketpair() ------------------------------*/
 
@@ -6598,13 +6102,13 @@ copy_ta_libs(char *path)
                             "| sed \"s/(0x[0-9a-f]*)$//\")", ta_execname),
                    cmd, MAX_CMD);
 
-    if (dynamic_library_set && strlen(dynamic_library_name) != 0)
+    if (tarpc_dynamic_library_name() != NULL)
         CHECK_SNPRINTF(
                 snprintf(cmd + strlen(cmd), MAX_CMD - strlen(cmd),
                          " && (ldd %s | sed \"s/.*=>[ \t]*//\" "
                          "| sed \"s/(0x[0-9a-f]*)$//\") && "
-                         "(echo \"%s\")", dynamic_library_name,
-                         dynamic_library_name),
+                         "(echo \"%s\")", tarpc_dynamic_library_name(),
+                         tarpc_dynamic_library_name()),
                 cmd + strlen(cmd), MAX_CMD - strlen(cmd));
 
     f = popen(cmd, "r");
@@ -7432,7 +6936,7 @@ flooder(tarpc_flooder_in *in)
     iomux_funcs iomux_f;
     api_func send_func;
     api_func recv_func;
-    api_func ioctl_func;
+    tarpc_ioctl_func ioctl_func;
 
     int        *rcvrs = in->rcvrs.rcvrs_val;
     int         rcvnum = in->rcvrs.rcvrs_len;
@@ -7468,7 +6972,8 @@ flooder(tarpc_flooder_in *in)
     if ((iomux_find_func(in->common.lib_flags, &iomux, &iomux_f) != 0)    ||
         (tarpc_find_func(in->common.lib_flags, "recv", &recv_func) != 0) ||
         (tarpc_find_func(in->common.lib_flags, "send", &send_func) != 0) ||
-        (tarpc_find_func(in->common.lib_flags, "ioctl", &ioctl_func) != 0))
+        (tarpc_find_func(in->common.lib_flags, "ioctl",
+                         (api_func *)&ioctl_func) != 0))
     {
         ERROR("failed to resolve function");
         return -1;
@@ -8878,6 +8383,8 @@ TARPC_FUNC(sendfile_via_splice,
 )
 
 /*-------------- splice() ------------------------------*/
+#if HAVE_SPLICE
+
 TARPC_FUNC(splice,
 {
     COPY_ARG(off_in);
@@ -8909,6 +8416,7 @@ TARPC_FUNC(splice,
         out->off_out.off_out_val[0] = (tarpc_off_t)off_out;
 }
 )
+#endif /* HAVE_SPLICE */
 
 /*-------------- socket_to_file() ------------------------------*/
 #define SOCK2FILE_BUF_LEN  4096
@@ -8926,7 +8434,7 @@ socket_to_file(tarpc_socket_to_file_in *in)
     api_func     write_func;
     api_func     read_func;
     api_func     close_func;
-    api_func_ptr open_func;
+    tarpc_open_func open_func;
     iomux_func   iomux = get_default_iomux();
 
     int      sock = in->sock;
@@ -9153,7 +8661,7 @@ overfill_buffers(tarpc_overfill_buffers_in *in,
     int             ret = 0;
     ssize_t         sent = 0;
     int             errno_save = errno;
-    api_func        ioctl_func;
+    tarpc_ioctl_func ioctl_func;
     api_func        send_func;
     iomux_funcs     iomux_f;
     iomux_func      iomux = in->iomux;
@@ -9172,7 +8680,8 @@ overfill_buffers(tarpc_overfill_buffers_in *in,
 
     memset(buf, 0xAD, sizeof(max_len));
 
-    if (tarpc_find_func(in->common.lib_flags, "ioctl", &ioctl_func) != 0)
+    if (tarpc_find_func(in->common.lib_flags, "ioctl",
+                        (api_func *)&ioctl_func) != 0)
     {
         ERROR("%s(): Failed to resolve ioctl() function", __FUNCTION__);
         ret = -1;
@@ -9195,8 +8704,12 @@ overfill_buffers(tarpc_overfill_buffers_in *in,
     }
     iomux_state_init_invalid(iomux, &iomux_st);
 
-#ifdef __sun__
-    /* SunOS has MSG_DONTWAIT flag, but does not support it for send */
+#if defined(__sun__) || defined(__APPLE__)
+    /*
+     * SunOS has MSG_DONTWAIT flag, but does not support it for send.
+     * send() of macOS with the flag on a blocking TCP socket waits for
+     * the window of the peer, so the buffers fill for minutes.
+     */
     if (!in->is_nonblocking)
     {
         int val = 1;
@@ -9290,7 +8803,7 @@ overfill_buffers(tarpc_overfill_buffers_in *in,
 overfill_buffers_exit:
     iomux_close(iomux, &iomux_f, &iomux_st);
 
-#ifdef __sun__
+#if defined(__sun__) || defined(__APPLE__)
     if (!in->is_nonblocking)
     {
         int val = 0;
@@ -9475,7 +8988,7 @@ overfill_fd(tarpc_overfill_fd_in *in,
     int             ret = 0;
     ssize_t         sent = 0;
     int             errno_save = errno;
-    api_func        fcntl_func;
+    tarpc_fcntl_func fcntl_func;
     api_func        write_func;
     size_t          max_len = 4096;
     uint8_t        *buf = NULL;
@@ -9485,7 +8998,8 @@ overfill_fd(tarpc_overfill_fd_in *in,
 
     memset(buf, 0xAD, sizeof(max_len));
 
-    if (tarpc_find_func(in->common.lib_flags, "fcntl", &fcntl_func) != 0)
+    if (tarpc_find_func(in->common.lib_flags, "fcntl",
+                        (api_func *)&fcntl_func) != 0)
     {
         ERROR("%s(): Failed to resolve fcntl() function", __FUNCTION__);
         ret = -1;
@@ -10529,14 +10043,14 @@ mcast_join_leave(tarpc_mcast_join_leave_in  *in,
 {
     api_func            setsockopt_func;
     api_func_ret_ptr    if_indextoname_func;
-    api_func            ioctl_func;
+    tarpc_ioctl_func    ioctl_func;
 
     if (tarpc_find_func(in->common.lib_flags, "setsockopt",
                         &setsockopt_func) != 0 ||
         tarpc_find_func(in->common.lib_flags, "if_indextoname",
                         (api_func *)&if_indextoname_func) != 0 ||
         tarpc_find_func(in->common.lib_flags, "ioctl",
-                        &ioctl_func) != 0)
+                        (api_func *)&ioctl_func) != 0)
     {
         ERROR("Cannot resolve function name");
         out->retval = -1;
@@ -10731,14 +10245,14 @@ mcast_source_join_leave(tarpc_mcast_source_join_leave_in  *in,
 {
     api_func            setsockopt_func;
     api_func_ret_ptr    if_indextoname_func;
-    api_func            ioctl_func;
+    tarpc_ioctl_func    ioctl_func;
 
     if (tarpc_find_func(in->common.lib_flags, "setsockopt",
                         &setsockopt_func) != 0 ||
         tarpc_find_func(in->common.lib_flags, "if_indextoname",
                         (api_func *)&if_indextoname_func) != 0 ||
         tarpc_find_func(in->common.lib_flags, "ioctl",
-                        &ioctl_func) != 0)
+                        (api_func *)&ioctl_func) != 0)
     {
         ERROR("Cannot resolve function name");
         out->retval = -1;
@@ -11363,48 +10877,6 @@ TARPC_FUNC(vfork_pipe_exec, {},
     MAKE_CALL(out->retval = func_ptr(in));
 }
 )
-
-/*------------ namespace_id2str() -----------------------*/
-
-te_errno
-namespace_id2str(tarpc_namespace_id2str_in *in,
-                 tarpc_namespace_id2str_out *out)
-{
-    te_errno rc;
-    const char *buf = NULL;
-    rc = rcf_pch_mem_ns_get_string(in->id, &buf);
-    if (rc != 0)
-        return rc;
-    if (buf == NULL)
-        return TE_RC(TE_RPC, TE_ENOENT);
-
-    /*
-     * Name of namespace could be an empty line, so do not use TE_ALLOC here,
-     * because it complains about zero lenght.
-     */
-    out->str.str_val = TE_STRDUP(buf);
-    out->str.str_len = strlen(buf);
-    return 0;
-}
-
-TARPC_FUNC(namespace_id2str,
-{
-    /* Only blocking operation is supported for @b namespace_id2str */
-    in->common.op = RCF_RPC_CALL_WAIT;
-},
-{
-    MAKE_CALL(out->retval = func_ptr(in, out));
-})
-
-/*------------ release_rpc_ptr() -----------------------*/
-
-TARPC_FUNC_STANDALONE(release_rpc_ptr, {},
-{
-    MAKE_CALL(
-        RPC_PCH_MEM_WITH_NAMESPACE(ns, in->ns_string, {
-            RCF_PCH_MEM_INDEX_FREE(in->ptr, ns);
-    }));
-})
 
 /*------------ get_rw_ability() -----------------------*/
 int
@@ -12350,7 +11822,10 @@ fcntl_te_wrap_syscall_common(bool use_libc,
         return -1;
     }
 
-    if (cmd == F_GETFD || cmd == F_GETFL ||cmd == F_GETSIG
+    if (cmd == F_GETFD || cmd == F_GETFL
+#if defined (F_GETSIG)
+        || cmd == F_GETSIG
+#endif
 #if defined (F_GETPIPE_SZ)
         || cmd == F_GETPIPE_SZ
 #endif
@@ -12542,7 +12017,11 @@ TARPC_FUNC(clock_settime, {},
 
 /*-------------- clock_adjtime() --------------------------------*/
 
-#ifdef HAVE_SYS_TIMEX_H
+/*
+ * Darwin does provide <sys/timex.h>, but neither clock_adjtime() nor
+ * the 'time' member of struct timex, so both have to be checked.
+ */
+#if defined(HAVE_SYS_TIMEX_H) && defined(HAVE_CLOCK_ADJTIME)
 
 /* Convert tarpc_timex structure to native timex structure. */
 static void

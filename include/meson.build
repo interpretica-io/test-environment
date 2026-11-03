@@ -85,6 +85,7 @@ check_headers = [
     'sys/cdefs.h',
     'sys/errno.h',
     'sys/ethernet.h',
+    'sys/eventfd.h',
     'sys/filio.h',
     'sys/ioctl.h',
     'sys/mman.h',
@@ -145,6 +146,28 @@ check_headers_prefix = '''
 foreach h : check_headers
     if cc.has_header(h, args: c_args, prefix: check_headers_prefix)
         have = 'HAVE_' + h.to_upper().underscorify()
+        conf.set(have, 1)
+        c_args += [ '-D' + have ]
+    endif
+endforeach
+
+#
+# Check for functions that are absent on some of the supported platforms
+# and whose presence changes the shape of installed headers.
+#
+check_functions = [
+    # POSIX per-process timers: absent on Darwin.
+    'timer_create',
+    # GNU extensions: absent on Darwin and the BSDs.
+    'execvpe',
+    'tdestroy',
+]
+
+foreach f : check_functions
+    if cc.has_function(f, args: c_args, prefix: '#include <time.h>\n' +
+                                                '#include <unistd.h>\n' +
+                                                '#include <search.h>')
+        have = 'HAVE_' + f.to_upper().underscorify()
         conf.set(have, 1)
         c_args += [ '-D' + have ]
     endif
@@ -272,6 +295,26 @@ sockaddr_sa_len_prefix = '''
 if cc.has_member('struct sockaddr', 'sa_len', args: c_args,
                  prefix: sockaddr_sa_len_prefix)
     conf.set('HAVE_STRUCT_SOCKADDR_SA_LEN', 1)
+endif
+
+# xdr_char() and xdr_u_char() of Darwin store the value back on encoding
+if host_machine.system() == 'darwin'
+    conf.set('TE_XDR_CHAR_STORES_BACK', 1)
+endif
+
+# The device of an ARP request: Linux only
+if cc.has_member('struct arpreq', 'arp_dev', args: c_args,
+                 prefix: sockaddr_sa_len_prefix + '#include <net/if_arp.h>\n')
+    conf.set('HAVE_STRUCT_ARPREQ_ARP_DEV', 1)
+endif
+
+#
+# Check for the Linux layout of the IPv4 header. Darwin, Solaris2 and
+# the BSDs provide 'struct ip' with differently named members instead.
+#
+if cc.has_type('struct iphdr', args: c_args,
+               prefix: '#include <netinet/ip.h>')
+    conf.set('HAVE_STRUCT_IPHDR', 1)
 endif
 
 #

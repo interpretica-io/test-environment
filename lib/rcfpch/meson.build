@@ -1,9 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2018-2022 OKTET Labs Ltd. All rights reserved.
 
-rcf_sniffers_dummy = library('rcf_sniffers_dummy',
-                             'rcf_sniffers_dummy.c', install: install_lib,
-                             dependencies: dep_lib_conf_oid)
+# An agent on Windows is one executable, without shared libraries of TE
+if host_windows
+    rcf_sniffers_dummy = static_library('rcf_sniffers_dummy',
+                                        'rcf_sniffers_dummy.c',
+                                        install: install_lib,
+                                        dependencies: dep_lib_conf_oid)
+else
+    rcf_sniffers_dummy = library('rcf_sniffers_dummy',
+                                 'rcf_sniffers_dummy.c', install: install_lib,
+                                 dependencies: dep_lib_conf_oid)
+endif
 dep_lib_rcf_sniffers_dummy = declare_dependency(link_with: rcf_sniffers_dummy,
                                                 dependencies: dep_lib_conf_oid)
 

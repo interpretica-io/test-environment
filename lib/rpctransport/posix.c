@@ -178,8 +178,14 @@ rpc_transport_init(const char *tmp_path)
     len = sizeof(struct sockaddr_in);
 #else
     addr.sun_family = AF_UNIX;
+    /* A path of Windows starts with a drive letter */
     snprintf(addr.sun_path, sizeof(addr.sun_path),
-             "/%s/terpc_%lu", tmp_path, (unsigned long)getpid());
+#ifdef _WIN32
+             "%s\\terpc_%lu",
+#else
+             "/%s/terpc_%lu",
+#endif
+             tmp_path, (unsigned long)getpid());
     len = sizeof(addr) - UNIX_PATH_MAX + strlen(addr.sun_path);
     unlink(addr.sun_path);
 #endif
@@ -437,6 +443,15 @@ rpc_transport_read_set_wait(int timeout)
 
     tv.tv_sec = timeout;
     tv.tv_usec = 0;
+
+#ifdef _WIN32
+    /* select() of Winsock fails at once on empty sets instead of waiting */
+    if (rset.fd_count == 0)
+    {
+        Sleep(timeout * 1000);
+        return true;
+    }
+#endif
 
     if (select(FD_SETSIZE, &rset, NULL, NULL, &tv) < 0)
     {

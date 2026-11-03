@@ -218,6 +218,47 @@ Optional libraries and packages:
 * libsnmp - for SNMP support.
 
 
+.. _doxid-group__te__user_1te_macos:
+
+Test Engine on macOS
+--------------------
+
+The Test Engine runs on macOS as well, with the packages of Homebrew:
+
+.. code-block:: none
+
+
+	brew install bash meson ninja pkg-config bison rpcsvc-proto \
+	    popt jansson libyaml pcre2 openssl glib
+
+The scripts of TE need bash 4 or later, and ``/bin/bash`` of macOS is 3.2:
+put the bash of Homebrew first in ``PATH``. bison and rpcsvc-proto are
+keg-only, and the bison and rpcgen of Xcode are too old for TE, so put their
+``bin`` directories into ``PATH`` as well:
+
+.. code-block:: none
+
+
+	export PATH=$(brew --prefix bison)/bin:$(brew --prefix rpcsvc-proto)/bin:$PATH
+
+RGT needs glib; it takes libxml2 from macOS. The C library of macOS has no
+obstacks, so RGT takes its own ones.
+
+These parts of TE need Linux and are not built on macOS:
+
+* ``tapi_tad`` and ``tapi_env``;
+
+* the parts of ``tapi_rpc`` which take the structures of Linux:
+  ``rpc_ioctl()`` of ``SG_IO`` and ``tapi_sock_raw_tcpv4_send()`` fail with
+  ``TE_EOPNOTSUPP``, and the interface index of ``SIOCGIFNAME`` and the
+  device of an ARP request are not passed to the agent.
+
+The Unix Test Agent builds on macOS too, see
+:ref:`Agent for macOS <doxid-group__te__agents__unix_1te_agent_unix_macos>`.
+The engine runs the agents of other hosts as it does on Linux, the Windows
+Test Agent included.
+
+
 .. _doxid-group__te__user_1te_build_config:
 
 Build configuration

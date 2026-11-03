@@ -106,9 +106,9 @@ tapi_rpc_namespace_check(rcf_rpc_server *rpcs, rpc_ptr ptr, const char* ns,
 
     if (strcmp(remote_ns, ns) != 0)
     {
+        /* The name stays in the cache of the RPC server, which frees it */
         ERROR("%s:%d: Incorrect namespace ('%s' != '%s')",
               function, line, remote_ns, ns);
-        free(remote_ns);
         rpcs->_errno = TE_RC(TE_TAPI, TE_EINVAL);
         return rpcs->_errno;
     }

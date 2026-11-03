@@ -301,11 +301,13 @@ static te_errno oper_status_get(const ta_conf_ctx *ctx, bool *val);
 static te_errno status_get(const ta_conf_ctx *ctx, bool *val);
 static te_errno status_set(const ta_conf_ctx *ctx, bool val);
 
+#ifdef __linux__
 static te_errno rp_filter_get(const ta_conf_ctx *ctx, te_string *val);
 static te_errno rp_filter_set(const ta_conf_ctx *ctx, const char *val);
 
 static te_errno arp_ignore_get(const ta_conf_ctx *ctx, te_string *val);
 static te_errno arp_ignore_set(const ta_conf_ctx *ctx, const char *val);
+#endif /* __linux__ */
 
 static te_errno promisc_get(const ta_conf_ctx *ctx, bool *val);
 static te_errno promisc_set(const ta_conf_ctx *ctx, bool val);
@@ -380,6 +382,15 @@ static te_errno neigh_proxy_list(const ta_conf_ctx *ctx, te_vec *names);
 te_errno ta_vlan_get_children(const char *, size_t *, int *);
 te_errno ta_vlan_get_parent(const char *, char *);
 
+/* The variables of Linux in /proc/sys/net/ipv4/conf of an interface */
+#ifdef __linux__
+#define IFACE_IPV4_CONF_NODES \
+        TA_CONF_RW_STR("arp_ignore", arp_ignore_get, arp_ignore_set), \
+        TA_CONF_RW_STR("rp_filter", rp_filter_get, rp_filter_set),
+#else
+#define IFACE_IPV4_CONF_NODES
+#endif
+
 static const ta_conf_node *const node_interface =
     TA_CONF_LIST("interface", interface_list,
         TA_CONF_NA("hwtstamp",
@@ -410,8 +421,7 @@ static const ta_conf_node *const node_interface =
         TA_CONF_RW_BOOL("status", status_get, status_set),
         TA_CONF_RW_BOOL("promisc", promisc_get, promisc_set),
         TA_CONF_RW_BOOL("allmulti", allmulti_get, allmulti_set),
-        TA_CONF_RW_STR("arp_ignore", arp_ignore_get, arp_ignore_set),
-        TA_CONF_RW_STR("rp_filter", rp_filter_get, rp_filter_set),
+        IFACE_IPV4_CONF_NODES
         TA_CONF_COLL_STR("vlans", vlans_get, vlans_add, vlans_del,
                          vlans_list,
             TA_CONF_RO_STR("ifname", vlan_ifname_get)),
@@ -629,6 +639,41 @@ ifconf_foreach_ifreq(struct my_ifreq *ifr, size_t length,
 
     return rc;
 }
+
+/*
+ * Where SIOCGIFHWADDR is missing, that is on Darwin and the BSDs, the
+ * link-layer address is reported as an AF_LINK entry of the interface
+ * configuration.
+ */
+#if !defined(MY_SIOCGIFHWADDR) && defined(AF_LINK) && HAVE_NET_IF_DL_H
+#define USE_IFCONF_LINK_ADDR    1
+
+/** Opaque data for link_addr_ifreq_cb() */
+struct link_addr_ifreq_cb_data {
+    const char    *ifname;  /**< Interface to look for */
+    const uint8_t *addr;    /**< Link-layer address, @c NULL if none */
+};
+
+static te_errno
+link_addr_ifreq_cb(struct my_ifreq *ifr, void *opaque)
+{
+    struct link_addr_ifreq_cb_data *data = opaque;
+    const struct sockaddr_dl       *sdl;
+
+    if (strcmp(ifr->my_ifr_name, data->ifname) != 0 ||
+        SA(&ifr->my_ifr_addr)->sa_family != AF_LINK)
+    {
+        return 0;
+    }
+
+    sdl = (const struct sockaddr_dl *)&ifr->my_ifr_addr;
+    if (sdl->sdl_alen == ETHER_ADDR_LEN)
+        data->addr = (const uint8_t *)LLADDR(sdl);
+
+    /* The interface has been found, stop the traversal */
+    return TE_EEXIST;
+}
+#endif
 
 #endif /* USE_IOCTL */
 
@@ -2273,7 +2318,7 @@ mcast_link_addr_del(const ta_conf_ctx *ctx)
 {
     const char *ifname = ta_conf_ctx_inst(ctx, "interface");
     const char *addr = ta_conf_ctx_inst(ctx, "mcast_link_addr");
-    te_errno rc;
+    te_errno rc = 0;
 #ifndef __linux__
     ifs_list_el *p;
     mma_list_el *q;
@@ -3045,6 +3090,29 @@ net_addr_list(const ta_conf_ctx *ctx, te_vec *names)
 
 #elif USE_IOCTL
 
+#ifdef __KAME__
+/**
+ * Strip the interface index off a link-local IPv6 address.
+ *
+ * The stacks derived from KAME, Darwin and the BSDs among them, keep
+ * the scope of a link-local address in the third and the fourth bytes
+ * of the address itself, and report it that way. The rest of TE
+ * expects the address as it appears on the wire.
+ *
+ * @param addr      Address to strip the scope off.
+ */
+static void
+in6_addr_clear_scope(struct in6_addr *addr)
+{
+    if (IN6_IS_ADDR_LINKLOCAL(addr) || IN6_IS_ADDR_MC_LINKLOCAL(addr) ||
+        IN6_IS_ADDR_MC_NODELOCAL(addr))
+    {
+        addr->s6_addr[2] = 0;
+        addr->s6_addr[3] = 0;
+    }
+}
+#endif /* __KAME__ */
+
 /** Opaque data for net_addr_list_ifreq_cb() */
 struct net_addr_list_ifreq_cb_data {
     const char *ifname;     /**< Interface name */
@@ -3058,8 +3126,9 @@ net_addr_list_ifreq_cb(struct my_ifreq *ifr, void *opaque)
 {
     struct net_addr_list_ifreq_cb_data *data = opaque;
 
-    size_t  str_addrlen;
-    void   *net_addr;
+    size_t          str_addrlen;
+    void           *net_addr;
+    struct in6_addr addr6;
 
     if (strcmp(ifr->my_ifr_name, data->ifname) != 0 &&
         !is_alias_of(ifr->my_ifr_name, data->ifname))
@@ -3073,7 +3142,11 @@ net_addr_list_ifreq_cb(struct my_ifreq *ifr, void *opaque)
     else if (SA(&ifr->my_ifr_addr)->sa_family == AF_INET6)
     {
         str_addrlen = INET6_ADDRSTRLEN;
-        net_addr = &SIN6(&ifr->my_ifr_addr)->sin6_addr;
+        addr6 = SIN6(&ifr->my_ifr_addr)->sin6_addr;
+#ifdef __KAME__
+        in6_addr_clear_scope(&addr6);
+#endif
+        net_addr = &addr6;
     }
     else
     {
@@ -3813,6 +3886,9 @@ link_addr_get(const ta_conf_ctx *ctx, struct sockaddr_storage *val)
     const char     *ifname = ta_conf_ctx_inst(ctx, "interface");
     te_errno        rc;
     const uint8_t  *ptr = NULL;
+#ifdef USE_IFCONF_LINK_ADDR
+    uint8_t         link_addr_buf[ETHER_ADDR_LEN];
+#endif
 
     if ((rc = CHECK_INTERFACE(ifname)) != 0)
         return TE_RC(TE_TA_UNIX, rc);
@@ -3851,40 +3927,48 @@ link_addr_get(const ta_conf_ctx *ctx, struct sockaddr_storage *val)
     else
         ptr = (const uint8_t *)my_ifr_hwaddr_data(req);
 
-#elif defined(__FreeBSD__)
-
-    void           *ifconf_buf = NULL;
-    size_t          ifconf_len;
-    struct ifreq   *p;
-
-    rc = get_ifconf_to_buf(&ifconf_buf, (void **)&p, &ifconf_len);
-    if (rc != 0)
+#elif defined(USE_IFCONF_LINK_ADDR)
     {
-        free(ifconf_buf);
-        return rc;
-    }
+        static const uint8_t            zero_mac[ETHER_ADDR_LEN] = {};
+        void                           *ifconf_buf = NULL;
+        size_t                          ifconf_len;
+        struct my_ifreq                *first_req;
+        struct link_addr_ifreq_cb_data  data;
 
-    for (; *(p->ifr_name) != '\0';
-         p = (struct ifreq *)((caddr_t)p + _SIZEOF_ADDR_IFREQ(*p)))
-    {
-        if ((strcmp(p->ifr_name, ifname) == 0) &&
-            (p->ifr_addr.sa_family == AF_LINK))
+        rc = get_ifconf_to_buf(&ifconf_buf, (void **)&first_req,
+                               &ifconf_len);
+        if (rc != 0)
         {
-            struct sockaddr_dl *sdl =
-                (struct sockaddr_dl *)&(p->ifr_addr);
+            free(ifconf_buf);
+            return rc;
+        }
 
-            if (sdl->sdl_alen == ETHER_ADDR_LEN)
-            {
-                ptr = (const uint8_t *)sdl->sdl_data + sdl->sdl_nlen;
-            }
-            else
-            {
-                /* ptr is NULL - no link-layer address */
-            }
-            break;
+        data.ifname = ifname;
+        data.addr = NULL;
+        (void)ifconf_foreach_ifreq(first_req, ifconf_len,
+                                   link_addr_ifreq_cb, &data);
+        if (data.addr != NULL)
+            memcpy(link_addr_buf, data.addr, sizeof(link_addr_buf));
+        free(ifconf_buf);
+
+        if (data.addr != NULL)
+        {
+            ptr = link_addr_buf;
+        }
+        else
+        {
+            /*
+             * A loopback interface has no link-layer address. Report
+             * the all-zeroes one, the same way as it is done where
+             * SIOCGIFHWADDR is available.
+             */
+            memset(&req, 0, sizeof(req));
+            te_strlcpy(req.my_ifr_name, ifname, sizeof(req.my_ifr_name));
+            CFG_IOCTL(cfg_socket, MY_SIOCGIFFLAGS, &req);
+            if (req.my_ifr_flags & IFF_LOOPBACK)
+                ptr = zero_mac;
         }
     }
-    free(ifconf_buf);
 #endif
 
     if (ptr == NULL)
@@ -4759,6 +4843,7 @@ rp_filter_set_core(const char *ifname, const char *value)
 #endif
 }
 
+#ifdef __linux__
 /**
  * Get RPF filtering value.
  *
@@ -4786,6 +4871,7 @@ rp_filter_set(const ta_conf_ctx *ctx, const char *value)
 {
     return rp_filter_set_core(ta_conf_ctx_inst(ctx, "interface"), value);
 }
+#endif /* __linux__ */
 
 /* See the description in conf_common.h */
 te_errno
@@ -4827,6 +4913,7 @@ arp_ignore_set_core(const char *ifname, const char *value)
 #endif
 }
 
+#ifdef __linux__
 /**
  * Get arp_ignore value.
  *
@@ -4854,6 +4941,7 @@ arp_ignore_set(const ta_conf_ctx *ctx, const char *value)
 {
     return arp_ignore_set_core(ta_conf_ctx_inst(ctx, "interface"), value);
 }
+#endif /* __linux__ */
 
 /**
  * Get promiscuous mode of the interface (@c false - normal,

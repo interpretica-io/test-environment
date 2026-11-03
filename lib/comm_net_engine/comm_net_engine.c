@@ -45,6 +45,10 @@
 #include "te_errno.h"
 #include "comm_net_engine.h"
 
+#if !defined(SOL_TCP) && defined(IPPROTO_TCP)
+#define SOL_TCP IPPROTO_TCP
+#endif
+
 
 #ifndef TE_COMM_DEBUG_PROTO
 /** Use '\n' as separator? */
@@ -136,26 +140,36 @@ rcf_net_engine_connect(const char *addr, const char *port,
             return TE_RC(TE_COMM, TE_EFAIL);
     }
 
-    /* Use the first addrinfo entry only */
-    s = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-    if (s < 0)
+    /*
+     * Use the first addrinfo entry only. A socket whose connect() has
+     * failed may not be connected again on the BSDs and macOS, so every
+     * attempt takes a new one.
+     */
+    while (true)
     {
+        s = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+        if (s < 0)
+        {
+            rc = errno;
+            freeaddrinfo(res);
+            return TE_OS_RC(TE_COMM, rc);
+        }
+
+        if (connect(s, res->ai_addr, res->ai_addrlen) == 0)
+        {
+            rc = 0;
+            break;
+        }
+
         rc = errno;
-        freeaddrinfo(res);
-        return TE_OS_RC(TE_COMM, rc);
+        (void)close(s);
+        if ((++retry) >= TE_COMM_NET_ENGINE_RETRY_MAX ||
+            sleep(TE_COMM_NET_ENGINE_RETRY_TIMEOUT) != 0)
+            break;
     }
-
-    do {
-
-        rc = connect(s, res->ai_addr, res->ai_addrlen);
-
-    } while ((rc != 0) &&
-             ((++retry) < TE_COMM_NET_ENGINE_RETRY_MAX) &&
-             (sleep(TE_COMM_NET_ENGINE_RETRY_TIMEOUT) == 0));
 
     if (rc != 0)
     {
-        rc = errno;
         freeaddrinfo(res);
         fprintf(stderr, "%s(): %s %s:%s\n",
                 __FUNCTION__, strerror(rc), addr, port);

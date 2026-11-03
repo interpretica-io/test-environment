@@ -211,8 +211,23 @@ resolve_ta_methods(ta *agent, char *libname)
     char                      name[RCF_MAX_NAME];
     void                     *handle;
 
+#ifdef __APPLE__
+    /*
+     * dyld does not search LD_LIBRARY_PATH: take the library from the
+     * lib directory of the installation, next to bin of te_rcf
+     */
+    TE_SPRINTF(name, "@executable_path/../lib/lib%s.dylib", libname);
+    handle = dlopen(name, RTLD_LAZY);
+    if (handle == NULL)
+    {
+        TE_SPRINTF(name, "lib%s.dylib", libname);
+        handle = dlopen(name, RTLD_LAZY);
+    }
+#else
     TE_SPRINTF(name, "lib%s.so", libname);
-    if ((handle = dlopen(name, RTLD_LAZY)) == NULL)
+    handle = dlopen(name, RTLD_LAZY);
+#endif
+    if (handle == NULL)
     {
         ERROR("FATAL ERROR: Cannot load shared library %s errno %s",
               libname, dlerror());

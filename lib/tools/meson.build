@@ -37,6 +37,7 @@ headers += files(
     'te_pci_ids.h',
     'te_rand.h',
     'te_ring.h',
+    'te_search.h',
     'te_serial.h',
     'te_serial_common.h',
     'te_serial_parser.h',
@@ -45,6 +46,7 @@ headers += files(
     'te_sleep.h',
     'te_sockaddr.h',
     'te_stopwatch.h',
+    'te_sem.h',
     'te_str.h',
     'te_string.h',
     'te_time.h',
@@ -64,7 +66,6 @@ sources += files(
     'te_compound.c',
     'te_dbuf.c',
     'te_enum.c',
-    'te_exec_child.c',
     'te_expand.c',
     'te_file.c',
     'te_format.c',
@@ -86,6 +87,7 @@ sources += files(
     'te_sigmap.c',
     'te_sockaddr.c',
     'te_stopwatch.c',
+    'te_sem.c',
     'te_str.c',
     'te_string.c',
     'te_time.c',
@@ -96,6 +98,17 @@ sources += files(
     'te_vector.c',
     'tq_string.c',
 )
+
+# Windows has no fork(), a child is created by CreateProcess() there
+if host_windows
+    sources += files('te_exec_child_win32.c')
+else
+    sources += files('te_exec_child.c')
+endif
+
+if cc.has_member('struct stat', 'st_blocks', prefix: '#include <sys/stat.h>')
+    c_args += [ '-DHAVE_STRUCT_STAT_ST_BLOCKS' ]
+endif
 
 #
 # Check for BSD string header and functions
@@ -133,10 +146,15 @@ if cc.has_function('strnlen')
     c_args += [ '-DHAVE_STRNLEN' ]
 endif
 
+#
+# POSIX real-time functions live in -lrt on Linux and Solaris2, but
+# they are a part of -lc on FreeBSD and Darwin, where librt is absent.
+#
 deps += [
     cc.find_library('m'),
-    cc.find_library('rt'),
-    dep_threads
+    cc.find_library('rt', required: false),
+    dep_threads,
+    dep_winsock,
 ]
 
 h = 'sched.h'

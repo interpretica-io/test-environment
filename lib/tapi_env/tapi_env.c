@@ -1508,9 +1508,16 @@ prepare_addresses(tapi_env_addrs *addrs, cfg_nets_t *cfg_nets)
                 if (rc != 0)
                     break;
 
-                SIN6(env_addr->addr)->sin6_addr.s6_addr16[5] = 0xffff;
-                SIN6(env_addr->addr)->sin6_addr.s6_addr32[3] =
-                    SIN(ip4)->sin_addr.s_addr;
+                /*
+                 * Only s6_addr is available in user space everywhere:
+                 * Darwin exposes s6_addr16 and s6_addr32 to the kernel
+                 * alone.
+                 */
+                SIN6(env_addr->addr)->sin6_addr.s6_addr[10] = 0xff;
+                SIN6(env_addr->addr)->sin6_addr.s6_addr[11] = 0xff;
+                memcpy(&SIN6(env_addr->addr)->sin6_addr.s6_addr[12],
+                       &SIN(ip4)->sin_addr.s_addr,
+                       sizeof(SIN(ip4)->sin_addr.s_addr));
 
                 free(ip4);
             }

@@ -17,6 +17,7 @@
 #include <string.h>
 #include <assert.h>
 #include <ctype.h>
+#include <libgen.h>
 
 #include <popt.h>
 
@@ -1229,7 +1230,8 @@ main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    prog_name = basename(argv[0]);
+    /* POSIX basename() may change its argument: give it the copy */
+    prog_name = basename(argv0_copy);
 
     if (strncmp(prog_prefix, prog_name, strlen(prog_prefix)) != 0)
     {

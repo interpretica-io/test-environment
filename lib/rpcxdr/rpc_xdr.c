@@ -54,6 +54,36 @@
 #include "xml_xdr.h"
 #endif
 
+#ifdef TE_XDR_CHAR_STORES_BACK
+/*
+ * The XDR routines of 8-bit integers of macOS store the value back on
+ * encoding too. These ones store it on decoding only, as glibc does.
+ */
+bool_t
+te_xdr_char(XDR *xdrs, char *cp)
+{
+    int i = *cp;
+
+    if (!xdr_int(xdrs, &i))
+        return FALSE;
+    if (xdrs->x_op == XDR_DECODE)
+        *cp = (char)i;
+    return TRUE;
+}
+
+bool_t
+te_xdr_u_char(XDR *xdrs, u_char *cp)
+{
+    u_int u = *cp;
+
+    if (!xdr_u_int(xdrs, &u))
+        return FALSE;
+    if (xdrs->x_op == XDR_DECODE)
+        *cp = (u_char)u;
+    return TRUE;
+}
+#endif
+
 /**
  * Find information corresponding to RPC function by its name.
  *

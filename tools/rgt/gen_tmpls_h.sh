@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2018-2022 OKTET Labs Ltd. All rights reserved.
 
@@ -13,8 +13,8 @@
 echo -E "enum {"
 for i in "$@" ; do
    basename "${i}" | sed 's,\.tmpl,,' |
-       tr [:lower:] [:upper:] |
-       awk '{ printf "%s,\n", $$1 }'
+       tr '[:lower:]' '[:upper:]' |
+       awk '{ printf "%s,\n", $1 }'
 done;
 echo -E "};"
 echo -E "const char *xml2fmt_files[] = {"

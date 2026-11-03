@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 #
 # Test Environment
@@ -403,6 +403,21 @@ process_agent_powerctl_parms() {
     done
 }
 
+process_agent_win32_parms() {
+    local p
+
+    set_sniffers false
+
+    while test -n "$1" ; do
+        p="$1"
+        case "${p}" in
+            *)
+                parms="${parms}${parms:+ }\"${p}\"" ;;
+        esac
+        shift
+    done
+}
+
 process_agent_proxy_parms() {
     local p
 
@@ -481,6 +496,29 @@ process_agent_powerctl() {
         eval ${libs_var}=
     }
 }
+process_agent_win32() {
+    local ta="$1"; shift
+    local pfx="$1"; shift
+    local parms_var="${pfx}PARMS"
+    local libs_var="${pfx}LIBS"
+    local ta_platform="${pfx}PLATFORM"
+    local parms=
+
+    meson_args="${meson_args} -Dagent-win32-name=${ta}"
+    meson_args="${meson_args} -Dagent-win32-platform=${!ta_platform}"
+
+    # eval is required interpret correctly parameter values with
+    # whitespaces in quotes
+    eval process_agent_win32_parms ${!parms_var}
+
+    eval ${parms_var}=\"\${parms}\"
+
+    test -z "${!libs_var}" || {
+        meson_args="${meson_args} -Dagent-win32-libs=\"$(make_meson_opt_array "${!libs_var}")\""
+        eval ${libs_var}=
+    }
+}
+
 process_agent_proxy() {
     local ta="$1"; shift
     local pfx="$1"; shift
@@ -594,6 +632,7 @@ process_agent() {
         unix)   process_agent_unix "${ta}" "${pfx}" ;;
         powerctl|power-ctl) process_agent_powerctl "${ta}" "${pfx}" ;;
         proxy) process_agent_proxy "${ta}" "${pfx}" ;;
+        win32) process_agent_win32 "${ta}" "${pfx}" ;;
         *)
             local ext_src_var="TE_BS_EXT_AGENT_${ta_src}_SOURCES"
             [[ -z "${!ext_src_var}" ]] \
@@ -615,6 +654,7 @@ generate_config_file() {
     local ar=
     local as=
     local strip=
+    local nm=
     local pkgconfig=
     local others=
     for parm in ${parms_var} ; do
@@ -633,6 +673,8 @@ generate_config_file() {
                 as="${parm#AS=}" ;;
             STRIP=*)
                 strip="${parm#STRIP=}" ;;
+            NM=*)
+                nm="${parm#NM=}" ;;
             PKG_CONFIG=*)
                 pkgconfig="${parm#PKG_CONFIG=}" ;;
             *)
@@ -643,7 +685,7 @@ generate_config_file() {
         warning "Unsupported platform parameters:${others}"
     fi
 
-    if test -z "${host}${cc}${cpp}${ld}${ar}${as}${strip}${pkg_config}" ; then
+    if test -z "${host}${cc}${cpp}${ld}${ar}${as}${strip}${nm}${pkg_config}" ; then
         return
     fi
 
@@ -655,6 +697,7 @@ generate_config_file() {
         test -n "$ar" && echo "ar = '${ar}'" >> $conffile
         test -n "$as" && echo "as = '${as}'" >> $conffile
         test -n "$strip" && echo "strip = '${strip}'" >> $conffile
+        test -n "$nm" && echo "nm = '${nm}'" >> $conffile
         test -n "$pkgconfig" && echo "pkgconfig = '${pkgconfig}'" >> $conffile
         eval TE_BS_MESON_${p}_NATIVE_FILE=\"\${conffile}\"
         return
@@ -662,14 +705,34 @@ generate_config_file() {
 
     test -z "$cc" && cc="${host}-gcc"
     local dumpmachine=$($cc -dumpmachine)
-    local cpu_family="$(cut -d'-' -f1 <<<"$dumpmachine")"
-    local system="$(echo $dumpmachine | rev | cut -d'-' -f2 | rev)"
+    local fields=()
+    IFS=- read -r -a fields <<<"${dumpmachine}"
+    local cpu_family="${fields[0]}"
+    # The system is the next to last field: x86_64-pc-linux-gnu
+    local system="${fields[${#fields[@]} - 2]}"
+
+    # MinGW-w64 triplets end with the runtime, not the system:
+    # x86_64-w64-mingw32 is a Windows host for meson
+    case "${dumpmachine}" in
+        *-mingw32*) system=windows ;;
+    esac
+
+    # clang of Apple targets reports arm64-apple-macosx11.0.0 or
+    # aarch64-apple-darwin: the system is not the next to last field,
+    # and meson calls the CPU of arm64 aarch64
+    case "${dumpmachine}" in
+        *-apple-darwin*|*-apple-macos*)
+            system=darwin
+            test "${cpu_family}" != arm64 || cpu_family=aarch64
+            ;;
+    esac
 
     test -z "$cpp" && cpp="${host}-cpp"
     test -z "$ld" && ld="${host}-ld"
     test -z "$ar" && ar="${host}-ar"
     test -z "$as" && as="${host}-as"
     test -z "$strip" && strip="${host}-strip"
+    test -z "$nm" && nm="${host}-nm"
     test -z "$pkgconfig" && pkgconfig="${host}-pkg-config"
 
     cat >$conffile <<-EOF
@@ -680,6 +743,7 @@ generate_config_file() {
 	ar = '${ar}'
 	as = '${as}'
 	strip = '${strip}'
+	nm = '${nm}'
 	pkgconfig = '${pkgconfig}'
 
 	[host_machine]
@@ -1056,18 +1120,28 @@ do_build() {
         # Make sure that log files have been created by the job
         wait_for_log_files "$log_pfx" "$p"
 
-        tail -f -c +1 --pid=${pid} "${log_pfx}.${p}.1" &
-        local pid_t1=$!
-        tail -f -c +1 --pid=${pid} "${log_pfx}.${p}.2" >&2 &
-        local pid_t2=$!
-
         local rc=0
-        wait "$pid" || rc=$?
-
         local rc_t1=0
-        wait "$pid_t1" || rc_t1=$?
         local rc_t2=0
-        wait "$pid_t2" || rc_t2=$?
+
+        if tail --pid=$$ -c 0 /dev/null 2>/dev/null ; then
+            tail -f -c +1 --pid=${pid} "${log_pfx}.${p}.1" &
+            local pid_t1=$!
+            tail -f -c +1 --pid=${pid} "${log_pfx}.${p}.2" >&2 &
+            local pid_t2=$!
+
+            wait "$pid" || rc=$?
+
+            wait "$pid_t1" || rc_t1=$?
+            wait "$pid_t2" || rc_t2=$?
+        else
+            # The tail of Darwin and the BSDs has no --pid: show the
+            # logs when the build is over
+            wait "$pid" || rc=$?
+
+            cat "${log_pfx}.${p}.1" || rc_t1=$?
+            cat "${log_pfx}.${p}.2" >&2 || rc_t2=$?
+        fi
 
         if test $rc -eq 0 -a $rc_t1 -eq 0 -a $rc_t2 -eq 0; then
             echo "Platform ${p} build - pass" >&2

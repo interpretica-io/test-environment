@@ -53,14 +53,32 @@ does_link = cc.links(
     name: 'obstack link check',
 )
 
-if not does_link
-    error('Obstack feature is required to build RGT')
+# The C library of macOS and the BSDs has no obstacks: take the ones
+# in compat/
+if does_link
+    dep_obstack = declare_dependency()
+else
+    inc_obstack = include_directories('compat')
+    inc = [inc, inc_obstack]
+    dep_obstack = declare_dependency(
+        include_directories: inc_obstack,
+        link_with: static_library('rgt_obstack', 'compat/obstack.c'),
+    )
 endif
 
 # Add large logs support if required
 
 if get_option('large-logs')
     c_args += ['-D_LARGEFILE64_SOURCE', '-D_FILE_OFFSET_BITS=64']
+endif
+
+# macOS and the BSDs have getprogname() of <stdlib.h> instead
+if cc.has_header_symbol('errno.h', 'program_invocation_short_name',
+                        args: '-D_GNU_SOURCE')
+    dep_progname = declare_dependency()
+else
+    dep_progname = declare_dependency(
+        compile_args: '-Dprogram_invocation_short_name=getprogname()')
 endif
 
 # RGT uses many GNU extensions:

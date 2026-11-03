@@ -51,7 +51,7 @@ tad_poll_free(tad_poll_context *context)
     LIST_REMOVE(context, links);
     CSAP_UNLOCK(context->csap);
 
-    (void)sem_destroy(&context->sem);
+    (void)te_sem_destroy(&context->sem);
     free(context);
 }
 
@@ -81,7 +81,7 @@ tad_poll_thread(void *arg)
 
     pthread_cleanup_push((void (*)(void *))tad_poll_free, context);
 
-    if (sem_post(&context->sem) != 0)
+    if (sem_post(TE_SEM_PTR(&context->sem)) != 0)
     {
         rc = TE_OS_RC(TE_TAD_CH, errno);
         ERROR("%s(): sem_post() failed: %r", __FUNCTION__, rc);
@@ -141,10 +141,10 @@ tad_poll_enqueue(csap_p csap, unsigned int timeout,
     context->timeout = timeout;
     /* Status to be returned on cancellation */
     context->status = TE_RC(TE_TAD_CH, TE_ECANCELED);
-    if (sem_init(&context->sem, 0, 0) != 0)
+    rc = te_sem_init(&context->sem, 0);
+    if (rc != 0)
     {
-        rc = TE_OS_RC(TE_TAD_CH, errno);
-        ERROR("%s(): sem_init() failed: %r", __FUNCTION__, rc);
+        rc = TE_RC(TE_TAD_CH, TE_RC_GET_ERROR(rc));
         goto fail_sem_init;
     }
 
@@ -164,7 +164,7 @@ tad_poll_enqueue(csap_p csap, unsigned int timeout,
     }
     else
     {
-        if (sem_wait(&context->sem) != 0)
+        if (sem_wait(TE_SEM_PTR(&context->sem)) != 0)
             assert(false);
 
         rc = tad_reply_poll(&context->reply_ctx, 0,  context->id);
@@ -187,7 +187,7 @@ tad_poll_enqueue(csap_p csap, unsigned int timeout,
 fail_pthread_create:
     LIST_REMOVE(context, links);
     CSAP_UNLOCK(csap);
-    (void)sem_destroy(&context->sem);
+    (void)te_sem_destroy(&context->sem);
 fail_sem_init:
     tad_reply_cleanup(&context->reply_ctx);
 fail_reply_clone:

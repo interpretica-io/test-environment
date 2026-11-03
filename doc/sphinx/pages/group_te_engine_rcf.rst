@@ -447,6 +447,28 @@ It is worth noting that a user who runs :ref:`Dispatcher <doxid-group__te__engin
 
 If ``sudo`` element is specified in the configuration string of a Test Agent, then it is assumed that user is sudoer without password.
 
+A :ref:`Windows Test Agent <doxid-group__te__agents__win32>` runs on a host with the OpenSSH server of Windows, which gives commands to cmd.exe. The ``windows`` element tells the library so:
+
+.. code-block:: xml
+
+    <ta name="Agt_W" type="win64" rcflib="rcfunix">
+        <conf name="host">winhost</conf>
+        <conf name="port">23571</conf>
+        <conf name="windows"/>
+    </ta>
+
+The library then
+
+* copies the agent to ``te_<type>_<user>_<pid>_<time>_<seqno>`` in the home directory of the ssh user, as Windows has no /tmp;
+
+* starts it with cmd.exe commands, without the PATH, LD_LIBRARY_PATH and shell detection a Unix host needs;
+
+* connects to the agent through a port forwarded by the ssh session which starts it, since Windows Firewall drops incoming connections to a new program by default;
+
+* kills a dead agent with ``taskkill /T``, which kills the processes it has started too, and removes the run directory with ``rmdir``.
+
+``sudo`` is ignored there: the agent has the rights of the ssh user, so the user must be an administrator for the agent to change the network configuration. ``ld_preload``, ``ext_rcf_listener`` and the core watcher are not supported.
+
 
 .. _doxid-rcfunix_conflib_1rcfunix_conflib:
 

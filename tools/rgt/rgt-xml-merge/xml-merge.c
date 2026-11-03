@@ -10,7 +10,6 @@
 #include <string.h>
 #include <assert.h>
 #include <stdbool.h>
-#include <sys/sendfile.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -591,7 +590,12 @@ rgt_stream_copy(const char *out_str, const char *in_str)
     else
         out_fd = 0;
 
-    if (strcmp(in_str, "-") != 0 && stat(in_str, &st) == 0)
+    /* A missing input file gives an empty output */
+    if (strcmp(in_str, "-") == 0)
+    {
+        in_fd = 0;
+    }
+    else if (stat(in_str, &st) == 0)
     {
         in_fd = open(in_str, O_RDONLY);
         if (in_fd == -1)
@@ -599,20 +603,25 @@ rgt_stream_copy(const char *out_str, const char *in_str)
             fprintf(stderr, "Couldn't open the file: %s\n",in_str);
             return -1;
         }
-        res = sendfile(out_fd, in_fd, 0, st.st_size);
-        if (res < st.st_size)
-            fprintf(stderr, "Couldn't complete the file copy: %d, %s\n",
-                    res, in_str);
-        close(in_fd);
     }
-    else if (strcmp(in_str, "-") == 0)
+    else
     {
-        in_fd = 0;
-        while ((res = read(in_fd, chunk, RGT_CHUNK_SIZE)) > 0)
+        in_fd = -1;
+    }
+
+    /* read() and write(): sendfile() is not portable */
+    while (in_fd != -1 && (res = read(in_fd, chunk, RGT_CHUNK_SIZE)) > 0)
+    {
+        if (write(out_fd, chunk, res) != res)
         {
-            write(out_fd, chunk, res);
+            fprintf(stderr, "Couldn't complete the file copy: %s\n",
+                    in_str);
+            break;
         }
     }
+
+    if (in_fd > 0)
+        close(in_fd);
 
     if (strcmp(out_str, "-") != 0)
         close(out_fd);

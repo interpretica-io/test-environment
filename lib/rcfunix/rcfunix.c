@@ -113,6 +113,12 @@
  * If @attr_val{sudo} element is specified in the configuration string of
  * a Test Agent, then it is assumed that user is sudoer without password.
  *
+ * @note
+ * The @attr_name{windows} element tells that the host runs Windows with
+ * its OpenSSH server. The commands are then the ones of @prog{cmd.exe},
+ * the run directory is in the home directory of the ssh user, and RCF
+ * connects to the agent through a port the ssh session forwards.
+ *
  * @section rcfunix_conflib Building RCF UNIX library
  * In order to build RCF UNIX library you should just mention rcfunix
  * in the list of platform libraries:
@@ -236,6 +242,9 @@
 #define RCFUNIX_WAITPID_N_MAX       100
 #define RCFUNIX_WAITPID_SLEEP_US    10000
 
+/** Number of retries to remove the run directory on Windows */
+#define RCFUNIX_WIN_RMDIR_TRIES     5
+
 #define RCFUNIX_DEF_CORE_PATTERN "/var/tmp/core.te.%h-%p-%t"
 
 /*
@@ -272,6 +281,8 @@ typedef struct unix_ta {
 
     bool sudo;       /**< Manipulate process using sudo */
     bool is_local;   /**< TA is started on the local PC */
+    bool windows;    /**< TA host runs Windows: ssh gives commands to
+                          cmd.exe, and the RCF port is forwarded by ssh */
 
     bool ext_rcf_listener;  /**< Listener socket used to accept RCF
                                     connection is created before
@@ -481,7 +492,7 @@ rcfunix_connect_to(const unix_ta *ta, bool ignore_proxy)
 {
     const char *host;
 
-    if (!ignore_proxy && ta->ssh_proxy[0] != '\0')
+    if (!ignore_proxy && (ta->ssh_proxy[0] != '\0' || ta->windows))
         host = "localhost";
     else if (ta->connect[0] != '\0')
         host = ta->connect;
@@ -910,6 +921,7 @@ rcfunix_start(const char *ta_name, const char *ta_type,
     const char *val;
     char       *ta_list_file;
     const char *ld_preload = NULL;
+    const char *run_dir_prefix;
     bool shell_is_bash = true;
 
     unsigned int timestamp;
@@ -968,13 +980,22 @@ rcfunix_start(const char *ta_name, const char *ta_type,
     if (logname == NULL)
         logname = "";
     timestamp = (unsigned int)time(NULL);
-    if (snprintf(ta->run_dir, sizeof(ta->run_dir), "/tmp/%.*s_%s_%u_%u_%u",
+
+    /*
+     * A Windows host has no /tmp. ssh starts commands in the home
+     * directory of the user there, and the run directory is created in it.
+     */
+    ta->windows = (te_kvpairs_get(conf, "windows") != NULL);
+    run_dir_prefix = ta->windows ? "te_" : "/tmp/";
+
+    if (snprintf(ta->run_dir, sizeof(ta->run_dir), "%s%.*s_%s_%u_%u_%u",
+                 run_dir_prefix,
                  rcfunix_ta_type_prefix_len(ta_type), ta_type, logname,
                  (unsigned int)getpid(), timestamp, ++seqno) >=
         (int)sizeof(ta->run_dir))
     {
-        ERROR("Failed to compose TA run directory '/tmp/%s_%s_%u_%u_%u' - "
-              "provided buffer too small",
+        ERROR("Failed to compose TA run directory '%s%s_%s_%u_%u_%u' - "
+              "provided buffer too small", run_dir_prefix,
               ta_type, logname, (unsigned int)getpid(), timestamp, seqno);
         te_string_free(&cfg_str);
         rcfunix_ta_free(ta);
@@ -995,6 +1016,13 @@ rcfunix_start(const char *ta_name, const char *ta_type,
         te_strlcpy(ta->host, val, RCF_MAX_NAME);
     }
     VERB("Test Agent host %s", ta->host);
+
+    if (ta->windows && ta->is_local)
+    {
+        ERROR("TA '%s': the Test Engine does not run on Windows, so a "
+              "Windows Test Agent needs a host", ta_name);
+        goto bad_conf;
+    }
 
     val = te_kvpairs_get(conf, "port");
     if (te_str_is_null_or_empty(val) ||
@@ -1074,6 +1102,23 @@ rcfunix_start(const char *ta_name, const char *ta_type,
 
     shell = te_kvpairs_get(conf, "shell");
 
+    if (ta->windows)
+    {
+        if (ta->ext_rcf_listener ||
+            !te_str_is_null_or_empty(te_kvpairs_get(conf, "ld_preload")))
+        {
+            ERROR("TA '%s': ext_rcf_listener and ld_preload are not "
+                  "supported on Windows", ta_name);
+            goto bad_conf;
+        }
+        if (ta->sudo)
+        {
+            WARN("TA '%s': sudo is ignored on Windows, the agent has the "
+                 "rights of the ssh user", ta_name);
+            ta->sudo = false;
+        }
+    }
+
     /*
      * It's assumed that the rest of configuration string should be
      * passed to agent.
@@ -1109,6 +1154,13 @@ rcfunix_start(const char *ta_name, const char *ta_type,
         if (ta->ssh_proxy[0] != '\0')
             te_string_append(&ta->start_prefix, " -L %s:%s:%s",
                              ta->port, rcfunix_connect_to(ta, true), ta->port);
+        /*
+         * Windows Firewall drops incoming connections to a new program
+         * by default, so the RCF port goes through ssh as well.
+         */
+        else if (ta->windows)
+            te_string_append(&ta->start_prefix, " -L %s:127.0.0.1:%s",
+                             ta->port, ta->port);
 
         /* Add common SSH options including host to connect to */
         te_string_append(&ta->cmd_prefix, "%s \"", ta->ssh_opts.ptr);
@@ -1185,9 +1237,10 @@ rcfunix_start(const char *ta_name, const char *ta_type,
     }
 
     /*
-     * Detect shell name for a non-local TA
+     * Detect shell name for a non-local TA. ssh on Windows starts
+     * commands in cmd.exe, and the agent needs no shell there.
      */
-    if (!ta->is_local)
+    if (!ta->is_local && !ta->windows)
     {
         /* Expected string is '/bin/shell_name' and 32 bytes is enough */
         te_string cmd_stdout = TE_STRING_INIT_STATIC(32);
@@ -1247,17 +1300,19 @@ rcfunix_start(const char *ta_name, const char *ta_type,
         te_string_append(&cmd, "/bin/bash -c '");
 
     /*
-     * Add directory with agent to the PATH
+     * Add directory with agent to the PATH and LD_LIBRARY_PATH. The
+     * Windows agent is a single executable.
      */
-    te_string_append(&cmd, "PATH=%s:%s${PATH} ",
-                     ta->run_dir, ta->is_local ? "" : "\\");
+    if (!ta->windows)
+    {
+        te_string_append(&cmd, "PATH=%s:%s${PATH} ",
+                         ta->run_dir, ta->is_local ? "" : "\\");
 
-    /*
-     * Add agent working directory to the LD_LIBRARY_PATH
-     */
-    te_string_append(&cmd,
-        "LD_LIBRARY_PATH=%s${LD_LIBRARY_PATH}%s${LD_LIBRARY_PATH:+:}%s ",
-        ta->is_local ? "" : "\\", ta->is_local ? "" : "\\", ta->run_dir);
+        te_string_append(&cmd,
+            "LD_LIBRARY_PATH=%s${LD_LIBRARY_PATH}%s${LD_LIBRARY_PATH:+:}%s ",
+            ta->is_local ? "" : "\\", ta->is_local ? "" : "\\",
+            ta->run_dir);
+    }
 
     /*
      * Update LD_PRELOAD variable, existing LD_PRELOAD variable
@@ -1282,7 +1337,12 @@ rcfunix_start(const char *ta_name, const char *ta_type,
      * Test Agent is always running in background, therefore it's
      * necessary to redirect its stdout and stderr to a file.
      */
-    te_string_append(&cmd, "%s/ta %s %s %s",
+    /*
+     * cmd.exe takes a slash for the start of an option, and the shell on
+     * the engine side turns the doubled backslash into one.
+     */
+    te_string_append(&cmd, ta->windows ? "%s\\\\ta.exe %s %s %s" :
+                                         "%s/ta %s %s %s",
                      ta->run_dir, ta->ta_name, ta->port,
                      (cfg_str.ptr == NULL) ? "" : cfg_str.ptr);
 
@@ -1305,7 +1365,12 @@ rcfunix_start(const char *ta_name, const char *ta_type,
     }
 
     val = te_kvpairs_get(conf, "core_watcher");
-    if (!te_str_is_null_or_empty(val))
+    if (!te_str_is_null_or_empty(val) && ta->windows)
+    {
+        WARN("TA '%s': core_watcher is not supported on Windows",
+             ta->ta_name);
+    }
+    else if (!te_str_is_null_or_empty(val))
     {
         if (strcasecmp(val, "yes") == 0 || strcasecmp(val, "ta_dir") == 0)
         {
@@ -1377,6 +1442,7 @@ rcfunix_finish(rcf_talib_handle handle, const char *parms)
     unix_ta    *ta = (unix_ta *)handle;
     te_string   cmd = TE_STRING_INIT;
     te_errno    rc;
+    unsigned int i;
 
     (void)parms;
 
@@ -1398,7 +1464,16 @@ rcfunix_finish(rcf_talib_handle handle, const char *parms)
          strcmp_start("solaris2", ta->ta_type) == 0))
     {
         /* Kill TA itself */
-        if (ta->is_local)
+        if (ta->windows)
+        {
+            /* The agent and the processes it has started */
+            rc = system_with_timeout(ta->kill_timeout, NULL,
+                     "%staskkill /F /T /PID %d%s " RCFUNIX_REDIRECT,
+                     ta->cmd_prefix.ptr, ta->pid, ta->cmd_suffix);
+            if (rc == TE_RC(TE_RCF_UNIX, TE_ETIMEDOUT))
+                goto done;
+        }
+        else if (ta->is_local)
         {
             kill(ta->pid, SIGTERM);
             kill(ta->pid, SIGKILL);
@@ -1420,6 +1495,13 @@ rcfunix_finish(rcf_talib_handle handle, const char *parms)
                 goto done;
         }
 
+        /*
+         * taskkill finds processes by the name of the executable only,
+         * which would kill the other agents of the host.
+         */
+        if (ta->windows)
+            goto killed;
+
         rc = system_with_timeout(ta->kill_timeout, NULL,
                  "%s%skillall %s/ta%s " RCFUNIX_REDIRECT,
                  ta->cmd_prefix.ptr, rcfunix_ta_sudo(ta), ta->run_dir,
@@ -1435,6 +1517,7 @@ rcfunix_finish(rcf_talib_handle handle, const char *parms)
             goto done;
     }
 
+killed:
     ta_clean_tce(ta, true);
 
     if (ta->start_pid > 0)
@@ -1446,8 +1529,18 @@ rcfunix_finish(rcf_talib_handle handle, const char *parms)
     if (ta->core_watcher_pid > 0)
         stop_core_watcher(ta);
 
-    te_string_append(&cmd, "%srm -rf %s%s",
-                     ta->cmd_prefix.ptr, ta->run_dir, ta->cmd_suffix);
+    if (ta->windows)
+    {
+        /* rmdir exits with 0 on some failures, so check the result */
+        te_string_append(&cmd, "%srmdir /s /q %s & if exist %s exit 1%s",
+                         ta->cmd_prefix.ptr, ta->run_dir, ta->run_dir,
+                         ta->cmd_suffix);
+    }
+    else
+    {
+        te_string_append(&cmd, "%srm -rf %s%s",
+                         ta->cmd_prefix.ptr, ta->run_dir, ta->cmd_suffix);
+    }
 
     /* we want to be careful with what we remove */
     if (cmd.len < strlen("rm -rf /tmp/"))
@@ -1461,8 +1554,18 @@ rcfunix_finish(rcf_talib_handle handle, const char *parms)
      * Let's use copy_timeout here, it's greater than kill_timeout and
      * with kill_timeout 'rm -fr' fails rarely with timeout, despite it
      * still working not hanging.
+     *
+     * Windows does not remove the files of a process until it exits,
+     * and the agent may be still exiting after the shutdown command.
      */
-    rc = system_with_timeout(ta->copy_timeout, NULL, "%s", cmd.ptr);
+    for (i = 0; ; i++)
+    {
+        rc = system_with_timeout(ta->copy_timeout, NULL, "%s", cmd.ptr);
+        if (rc == 0 || rc == TE_RC(TE_RCF_UNIX, TE_ETIMEDOUT) ||
+            !ta->windows || i == RCFUNIX_WIN_RMDIR_TRIES)
+            break;
+        te_sleep(1);
+    }
     if (rc == TE_RC(TE_RCF_UNIX, TE_ETIMEDOUT))
         goto done;
 

@@ -1,29 +1,25 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2005-2022 OKTET Labs Ltd. All rights reserved.
+# Copyright (C) 2026 Interpretica, Unipessoal Lda. All rights reserved.
+#
+# Engine on the build host and a Test Agent for 64-bit Windows built by
+# MinGW-w64. The agent is started by rcfunix with the "windows" element
+# of its RCF configuration.
 
 TE_TOOLS([rgt trc])
 
-TE_PLATFORM([], [], [], [], [],
-            [tools logic_expr ipc bsapi loggerten rpcxdr rpc_types \
-             rcfapi conf_oid confapi \
-             tapi comm_net_agent comm_net_engine loggerta rcfpch \
-             rcfunix asn ndn tad forwarder rcfrpc tapi_rpc tapi_tad trc])
+TE_PLATFORM([], [], [-D_GNU_SOURCE], [], [],
+            [logger_core tools logic_expr conf_oid rpcxdr rpc_types \
+             ipc bsapi loggerten rcfapi confapi comm_net_engine rcfunix \
+             tapi rcfrpc trc log_proc asn ndn])
 
-TE_LIB_PARMS([tad], [], [],
-             [--with-eth --with-arp --with-ipstack --with-dhcp --with-cli],
-             [], [], [])
-TE_LIB_PARMS([forwarder], [], [${TAD_FORW_DIR}], [], [], [], [])
+TE_PLATFORM([win64], [--host=x86_64-w64-mingw32], [], [], [],
+            [logger_core tools conf_oid asn ndn rpcxdr rpc_types \
+             comm_net_agent loggerta rpctransport agentlib \
+             rpcserver rcfpch tad])
 
-TE_TA_TYPE([linux], [], [unix], [--with-rcf-rpc], [], [], [],
-           [forwarder ndn asn comm_net_agent])
+# The agent has no TAD on Windows: the dummy callbacks only
+TE_LIB_PARMS([tad], [win64], [], [--without-tad])
 
-TE_PLATFORM([cygwin], [--host=i686-pc-cygwin],
-            [-I${CYGWIN_HOME}/include -I${CYGWIN_HOME}/include/ws32api \
-             -D__CYGWIN__],
-            [],
-            [-L${CYGWIN_HOME}/lib -L${CYGWIN_HOME}/lib/w32api],
-            [tools comm_net_agent loggerta conf_oid rpcxdr rpc_types rcfpch log_proc tad])
-
-TE_TA_TYPE([win32], [cygwin], [],
-           [--with-rcf-rpc], [], [], [], [comm_net_agent])
+TE_TA_TYPE([win64], [win64], [win32], [], [], [], [], [])

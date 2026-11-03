@@ -511,7 +511,11 @@ rcf_rpc_free_result(void *out_arg, xdrproc_t out_proc)
 {
     enum xdr_op op = XDR_FREE;
 
-    out_proc((XDR *)&op, out_arg);
+    /*
+     * The xdrproc_t of macOS takes a third argument, which the routines
+     * rpcgen makes do not have
+     */
+    ((bool_t (*)(XDR *, void *))out_proc)((XDR *)&op, out_arg);
 }
 
 /**

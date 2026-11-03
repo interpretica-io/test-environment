@@ -241,22 +241,15 @@ ipc_register_server(const char *name, bool conn,
 
 #ifdef TE_IPC_AF_UNIX
     {
-        struct sockaddr_un  sa;
-
         /* Assign a name to socket */
-        sa.sun_family = AF_UNIX;
-        memset(sa.sun_path, 0, UNIX_PATH_MAX);
-        /* Sockets in the abstract namespace are started from '\0' */
-        strcpy(sa.sun_path + 1, name);
-
-        if (bind(ipcs->socket, SA(&sa), sizeof(sa)) != 0)
+        rc = ipc_sun_bind(ipcs->socket, name, true);
+        if (rc != 0)
         {
-            rc = errno;
             fprintf(stderr, "Failed to register IPC server '%s': %s\n",
-                            SUN_NAME(&sa), strerror(rc));
+                            name, te_rc_err2str(rc));
             close(ipcs->socket);
             free(ipcs);
-            return TE_OS_RC(TE_IPC, rc);
+            return rc;
         }
     }
 #endif /* TE_IPC_AF_UNIX */
@@ -441,6 +434,9 @@ ipc_close_server(struct ipc_server *ipcs)
     }
 #endif
 
+#ifdef TE_IPC_AF_UNIX
+    ipc_sun_unlink(ipcs->socket);
+#endif
     if (close(ipcs->socket) != 0)
         fprintf(stderr, "close() failed\n");
 
@@ -482,8 +478,7 @@ ipc_server_client_name(const struct ipc_server_client *ipcsc)
         return NULL;
 
 #ifdef TE_IPC_AF_UNIX
-    return (ipcsc->sa.sun_path[0] != '\0') ? ipcsc->sa.sun_path :
-               (ipcsc->sa.sun_path + 1);
+    return ipc_sun_name(&ipcsc->sa);
 #else
     return "UNKNOWN - TODO";
 #endif

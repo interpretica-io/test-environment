@@ -13,7 +13,7 @@
 #include "config.h"
 #endif
 
-#include <search.h>
+#include "te_search.h"
 
 #include "te_alloc.h"
 #include "te_queue.h"

@@ -11,6 +11,18 @@
 
 %#include "te_config.h"
 
+%#ifdef TE_XDR_CHAR_STORES_BACK
+%/*
+% * xdr_char() and xdr_u_char() of macOS store the value back when they
+% * encode it as well, which crashes on a buffer in read-only memory.
+% * lib/rpcxdr/rpc_xdr.c has the replacements.
+% */
+%extern bool_t te_xdr_char(XDR *xdrs, char *cp);
+%extern bool_t te_xdr_u_char(XDR *xdrs, u_char *cp);
+%#define xdr_char te_xdr_char
+%#define xdr_u_char te_xdr_u_char
+%#endif
+
 typedef int32_t     tarpc_int;
 typedef uint32_t    tarpc_uint;
 typedef uint8_t     tarpc_bool;

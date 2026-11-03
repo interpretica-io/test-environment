@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2026 Interpretica, Unipessoal Lda. All rights reserved.
 #
@@ -281,6 +281,101 @@ function agent_options() {
 }
 
 #######################################
+# Report the meson options for a Windows agent with two extra libraries.
+#
+# Runs under with_builder(), which provides process_agent_win32().
+# Globals:
+#   TEST_PLATFORM
+# Outputs:
+#   Writes the meson arguments to stdout.
+#######################################
+win32_agent_options() {
+    local meson_args=
+
+    TE_BS_TA_win_ta_PLATFORM="${TEST_PLATFORM}"
+    TE_BS_TA_win_ta_LIBS="tapi_one tapi_two"
+    process_agent_win32 win_ta TE_BS_TA_win_ta_
+    printf '%s\n' "${meson_args}"
+}
+
+#######################################
+# Report the host system of the cross file for a MinGW-w64 platform.
+#
+# A stand-in compiler reports the triplet, so no MinGW-w64 toolchain is
+# needed. Runs under with_builder(), which provides
+# generate_config_file().
+# Globals:
+#   TE_BUILD
+#   WORK
+# Outputs:
+#   Writes the 'system' line of the cross file to stdout.
+#######################################
+mingw_cross_system() {
+    local cc="${WORK}/mingw-gcc"
+
+    printf '#!/bin/sh\necho x86_64-w64-mingw32\n' >"${cc}"
+    chmod +x "${cc}"
+    mkdir -p "${TE_BUILD}"
+
+    generate_config_file winplat "--host=x86_64-w64-mingw32 CC=${cc}"
+    # generate_config_file() sets the variable by eval
+    # shellcheck disable=SC2154
+    grep '^system' "${TE_BS_MESON_winplat_CROSS_FILE}"
+}
+
+#######################################
+# Report the host CPU, system and nm of the cross file for a platform
+# of llvm-mingw.
+#
+# clang of llvm-mingw reports aarch64-w64-windows-gnu, not the triplet
+# of the platform. Runs under with_builder() as mingw_cross_system().
+# Globals:
+#   TE_BUILD
+#   WORK
+# Outputs:
+#   Writes the 'cpu_family', 'system' and 'nm' lines of the cross file
+#   to stdout, joined by commas.
+#######################################
+llvm_mingw_cross_file() {
+    local cc="${WORK}/llvm-mingw-clang"
+
+    printf '#!/bin/sh\necho aarch64-w64-windows-gnu\n' >"${cc}"
+    chmod +x "${cc}"
+    mkdir -p "${TE_BUILD}"
+
+    generate_config_file armplat "--host=aarch64-w64-mingw32 CC=${cc}"
+    # shellcheck disable=SC2154
+    grep -E '^(cpu_family|system|nm) ' "${TE_BS_MESON_armplat_CROSS_FILE}" |
+        sort | paste -sd, -
+}
+
+#######################################
+# Report the host CPU and system of the cross file for a platform of
+# macOS.
+#
+# clang reports arm64-apple-macosx11.0.0 for arm64 macOS. Runs under
+# with_builder() as mingw_cross_system().
+# Globals:
+#   TE_BUILD
+#   WORK
+# Outputs:
+#   Writes the 'cpu_family' and 'system' lines of the cross file to
+#   stdout, joined by commas.
+#######################################
+darwin_cross_file() {
+    local cc="${WORK}/darwin-clang"
+
+    printf '#!/bin/sh\necho arm64-apple-macosx11.0.0\n' >"${cc}"
+    chmod +x "${cc}"
+    mkdir -p "${TE_BUILD}"
+
+    generate_config_file macplat "--host=aarch64-apple-darwin CC=${cc}"
+    # shellcheck disable=SC2154
+    grep -E '^(cpu_family|system) ' "${TE_BS_MESON_macplat_CROSS_FILE}" |
+        sort | paste -sd, -
+}
+
+#######################################
 # Run every scenario and report the outcome.
 #
 # The configurations are heredocs, so their bodies and terminators
@@ -421,6 +516,23 @@ EOF
     want="${want}|ta_ext_selftest:tapi_ext_selftest"
     want="${want},ta_ext_selftest:ta_ext_selftest"
     expect_eq "the agent options" "$(with_builder agent_options)" "${want}"
+
+    step "The options of a Windows agent name it and its libraries"
+    expect_eq "the Windows agent options" \
+              "$(with_builder win32_agent_options)" \
+              " -Dagent-win32-name=win_ta -Dagent-win32-platform=${TEST_PLATFORM} -Dagent-win32-libs=\"tapi_one,tapi_two\""
+
+    step "A MinGW-w64 platform is a Windows host for meson"
+    expect_eq "the cross file system" "$(with_builder mingw_cross_system)" \
+              "system = 'windows'"
+
+    step "A platform of llvm-mingw takes its nm from the host triplet"
+    expect_eq "the cross file" "$(with_builder llvm_mingw_cross_file)" \
+              "cpu_family = 'aarch64',nm = 'aarch64-w64-mingw32-nm',system = 'windows'"
+
+    step "A platform of macOS is a Darwin host with an aarch64 CPU"
+    expect_eq "the cross file" "$(with_builder darwin_cross_file)" \
+              "cpu_family = 'aarch64',system = 'darwin'"
 
     step "A name that would break the option encoding is refused"
     for bad in "with:colon" "with,comma" ; do

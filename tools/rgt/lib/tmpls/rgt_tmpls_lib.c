@@ -52,8 +52,34 @@ static bool attr_locked = false;
 /** The array of buffers for keeping string value attributes */
 static char bufs[ATTR_NUM][BUF_LEN];
 
-/** Type of an output function (like fprintf()) */
-typedef int (*write_func)(void *arg, ...);
+/**
+ * Type of an output function (like fprintf()). The format must be a named
+ * parameter: the ABI of Apple arm64 passes the named parameters and the
+ * variadic ones in different places.
+ */
+typedef void (*write_func)(void *dest, const char *fmt, ...);
+
+/* write_func for a FILE */
+static void
+write_file(void *dest, const char *fmt, ...)
+{
+    va_list ap;
+
+    va_start(ap, fmt);
+    vfprintf(dest, fmt, ap);
+    va_end(ap);
+}
+
+/* write_func for a te_string */
+static void
+write_te_string(void *dest, const char *fmt, ...)
+{
+    va_list ap;
+
+    va_start(ap, fmt);
+    te_string_append_va(dest, fmt, ap);
+    va_end(ap);
+}
 
 /* The description see in rgt_tmpls_lib.h */
 rgt_attrs_t *
@@ -425,7 +451,7 @@ rgt_tmpls_output_gen(write_func func, void *dest, rgt_tmpl_t *tmpl,
 int
 rgt_tmpls_output(FILE *out_fd, rgt_tmpl_t *tmpl, const rgt_attrs_t *attrs)
 {
-    return rgt_tmpls_output_gen((write_func)&fprintf, out_fd, tmpl, attrs);
+    return rgt_tmpls_output_gen(write_file, out_fd, tmpl, attrs);
 }
 
 /* The description see in rgt_tmpls_lib.h */
@@ -433,8 +459,7 @@ int
 rgt_tmpls_output_str(te_string *str, rgt_tmpl_t *tmpl,
                      const rgt_attrs_t *attrs)
 {
-    return rgt_tmpls_output_gen((write_func)&te_string_append, str, tmpl,
-                                attrs);
+    return rgt_tmpls_output_gen(write_te_string, str, tmpl, attrs);
 }
 
 /* The description see in rgt_tmpls_lib.h */

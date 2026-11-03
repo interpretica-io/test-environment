@@ -49,9 +49,16 @@ foreach extra_lib : ta_libs
     endif
 endforeach
 
+#
+# Network interfaces are configured either over netlink, which is
+# available on Linux only, or with the SIOCxIFxxx ioctl requests that
+# every other UNIX provides.
+#
 if get_option('libs').split().contains('netconf')
     c_args += [ '-DUSE_LIBNETCONF' ]
     ta_non_symtbl_libs += [ 'netconf' ]
+else
+    c_args += [ '-DUSE_IOCTL' ]
 endif
 
 check_headers = [
@@ -463,7 +470,8 @@ if get_option('agent-unix-symtbl')
     c_args += [ '-DENABLE_GENERATED_SYMTBL' ]
     symtbl = custom_target('gen-symtbl', output: 'symtbl.c', capture: true,
                            input: [ symtbl_src ],
-                           command: [ te_generate_symtbl, nm, '@INPUT@' ])
+                           command: [ te_generate_symtbl, nm, te_symtbl_args,
+                                      '@INPUT@' ])
     generated_sources += [ symtbl ]
 endif
 

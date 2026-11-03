@@ -25,6 +25,12 @@
 /* Define to 1 if you have the <errno.h> header file. */
 #mesondefine HAVE_ERRNO_H
 
+/* Define to 1 if you have the `execvpe' function. */
+#mesondefine HAVE_EXECVPE
+
+/* Define to 1 if you have the `tdestroy' function. */
+#mesondefine HAVE_TDESTROY
+
 /* Define to 1 if you have the <fcntl.h> header file. */
 #mesondefine HAVE_FCNTL_H
 
@@ -226,6 +232,15 @@
 /* Define to 1 if you have the <stropts.h> header file. */
 #mesondefine HAVE_STROPTS_H
 
+/* Define to 1 if the system has the type `struct iphdr'. */
+#mesondefine HAVE_STRUCT_IPHDR
+
+/* Define to 1 if `struct arpreq' has `arp_dev'. */
+#mesondefine HAVE_STRUCT_ARPREQ_ARP_DEV
+
+/* Define to 1 if xdr_char() and xdr_u_char() store the value on encoding. */
+#mesondefine TE_XDR_CHAR_STORES_BACK
+
 /* Define to 1 if `sa_len' is a member of `struct sockaddr'. */
 #mesondefine HAVE_STRUCT_SOCKADDR_SA_LEN
 
@@ -237,6 +252,9 @@
 
 /* Define to 1 if you have the <sys/ethernet.h> header file. */
 #mesondefine HAVE_SYS_ETHERNET_H
+
+/* Define to 1 if you have the <sys/eventfd.h> header file. */
+#mesondefine HAVE_SYS_EVENTFD_H
 
 /* Define to 1 if you have the <sys/filio.h> header file. */
 #mesondefine HAVE_SYS_FILIO_H
@@ -315,6 +333,9 @@
 
 /* Define to 1 if you have the <time.h> header file. */
 #mesondefine HAVE_TIME_H
+
+/* Define to 1 if you have the `timer_create' function. */
+#mesondefine HAVE_TIMER_CREATE
 
 /* Define to 1 if you have the <ucd-snmp/snmp_impl.h> header file. */
 #mesondefine HAVE_UCD_SNMP_SNMP_IMPL_H

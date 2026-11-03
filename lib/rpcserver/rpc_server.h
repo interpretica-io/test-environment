@@ -155,6 +155,19 @@
 #include "rpc_xdr.h"
 #include "tarpc.h"
 
+/*
+ * sendmmsg()/recvmmsg() are a Linux extension. The structure is
+ * declared here in any case, since the RPC entry points for those
+ * calls are always compiled and report TE_EOPNOTSUPP at run time
+ * where the calls are missing.
+ */
+#if !HAVE_STRUCT_MMSGHDR
+struct mmsghdr {
+    struct msghdr msg_hdr;  /**< Message header */
+    unsigned int  msg_len;  /**< Number of received bytes for header */
+};
+#endif
+
 /** System call number of recvmmsg function */
 #ifndef SYS_recvmmsg
 #ifdef __NR_recvmmsg
@@ -192,6 +205,30 @@
 #endif
 #endif
 #endif
+
+/**
+ * The greatest signal number the platform can deliver.
+ *
+ * Darwin and the BSDs have no real-time signals, hence no SIGRTMAX.
+ */
+#ifdef SIGRTMAX
+#define TARPC_SIGNUM_MAX    SIGRTMAX
+#elif defined(NSIG)
+#define TARPC_SIGNUM_MAX    (NSIG - 1)
+#else
+#define TARPC_SIGNUM_MAX    (_NSIG - 1)
+#endif
+
+/**
+ * Convert the RPC representation of a thread identifier to the native
+ * one. It is an integer on Linux and a pointer on Darwin.
+ */
+#define TARPC_PTHREAD_T(_tid)   ((pthread_t)(uintptr_t)(_tid))
+
+/**
+ * Convert a native thread identifier to the RPC representation.
+ */
+#define TARPC_PTHREAD_T_H2RPC(_tid)  ((tarpc_pthread_t)(uintptr_t)(_tid))
 
 /** Extract sigset from in argument */
 #define IN_SIGSET       ((sigset_t *)(rcf_pch_mem_get(in->set)))
@@ -235,20 +272,33 @@
  */
 
 /**@{*/
+#if defined(__APPLE__) && defined(__aarch64__)
+/*
+ * Darwin on arm64 passes variadic arguments on the stack, and the
+ * functions called through these types take them in registers. A call
+ * through a type without a prototype passes the arguments in registers.
+ */
+#pragma clang diagnostic ignored "-Wdeprecated-non-prototype"
+#define API_FUNC_PARAMS(_first) ()
+#else
+/** Parameter list of the RPC call function types */
+#define API_FUNC_PARAMS(_first) (_first, ...)
+#endif
+
 /**
  * Type of RPC call function where
  * - the first argument is of integer type;
  * - return value is an integer.
  * .
  */
-typedef int (*api_func)(int param,...);
+typedef int (*api_func)API_FUNC_PARAMS(int param);
 /**
  * Type of RPC call function where
  * - the first argument is of pointer type;
  * - return value is an integer.
  * .
  */
-typedef int (*api_func_ptr)(void *param,...);
+typedef int (*api_func_ptr)API_FUNC_PARAMS(void *param);
 /**
  * Type of RPC call function where
  * - there is no arguments;
@@ -262,14 +312,14 @@ typedef int (*api_func_void)(void);
  * - return value is a pointer.
  * .
  */
-typedef void *(*api_func_ret_ptr)(int param,...);
+typedef void *(*api_func_ret_ptr)API_FUNC_PARAMS(int param);
 /**
  * Type of RPC call function where
  * - the first argument is of pointer type;
  * - return value is a pointer.
  * .
  */
-typedef void *(*api_func_ptr_ret_ptr)(void *param,...);
+typedef void *(*api_func_ptr_ret_ptr)API_FUNC_PARAMS(void *param);
 /**
  * Type of RPC call function where
  * - there is no arguments;
@@ -284,7 +334,18 @@ typedef void *(*api_func_void_ret_ptr)(void);
  * - return value is an integer64.
  * .
  */
-typedef int64_t (*api_func_ret_int64)(int param,...);
+typedef int64_t (*api_func_ret_int64)API_FUNC_PARAMS(int param);
+
+/*
+ * The functions which take variable arguments themselves are called by
+ * their prototypes: the types above may pass the arguments otherwise.
+ */
+/** Type of ioctl() */
+typedef int (*tarpc_ioctl_func)(int fd, unsigned long request, ...);
+/** Type of fcntl() */
+typedef int (*tarpc_fcntl_func)(int fd, int cmd, ...);
+/** Type of open() */
+typedef int (*tarpc_open_func)(const char *path, int flags, ...);
 
 /** @} */
 
@@ -312,6 +373,13 @@ shut_how_rpc2h(rpc_shut_how how)
  * @return @c true if dynamic library loaded
  */
 extern bool tarpc_dynamic_library_loaded(void);
+
+/**
+ * Get the name of the dynamic library set by tarpc_setlibname().
+ *
+ * @return Library name, or @c NULL if none is set.
+ */
+extern const char *tarpc_dynamic_library_name(void);
 
 /**
  * Sleep the pending timeout and return error in case

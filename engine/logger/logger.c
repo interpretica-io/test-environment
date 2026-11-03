@@ -234,7 +234,7 @@ lgr_register_message(const void *buf, size_t len)
             return;
         }
         /* RAW log is too big now, ignore new messages */
-        if (raw_file_stat.st_size > (off64_t)raw_log_max_size)
+        if (raw_file_stat.st_size > (off_t)raw_log_max_size)
         {
             raw_log_too_big = true;
 
@@ -1134,6 +1134,8 @@ main(int argc, const char *argv[])
     const char *pid_fn = getenv("TE_LOGGER_PID_FILE");
     FILE       *pid_f = NULL;
     sigset_t    sigs;
+    int         sig;
+    int         err;
     char       *ta_names = NULL;
     size_t      names_len;
     size_t      str_len = 0;
@@ -1282,10 +1284,10 @@ main(int argc, const char *argv[])
         pid_f = NULL;
 
         /* Wait for SIGUSR1 to be sent by Dispatcher */
-        if (sigwaitinfo(&sigs, NULL) < 0)
+        if ((err = sigwait(&sigs, &sig)) != 0)
         {
-            res = TE_OS_RC(TE_LOGGER, errno);
-            ERROR("sigwaitinfo() failed: error=%r", res);
+            res = TE_OS_RC(TE_LOGGER, err);
+            ERROR("sigwait() failed: error=%r", res);
             goto join_te_srv;
         }
 

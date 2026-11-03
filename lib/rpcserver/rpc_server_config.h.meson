@@ -150,6 +150,21 @@
 /* Define to 1 if you have the `preadv2' function. */
 #mesondefine HAVE_PREADV2
 
+/* Define to 1 if you have the `accept4' function. */
+#mesondefine HAVE_ACCEPT4
+
+/* Define to 1 if you have the `clock_adjtime' function. */
+#mesondefine HAVE_CLOCK_ADJTIME
+
+/* Define to 1 if you have the `dup3' function. */
+#mesondefine HAVE_DUP3
+
+/* Define to 1 if you have the `pipe2' function. */
+#mesondefine HAVE_PIPE2
+
+/* Define to 1 if you have the `splice' function. */
+#mesondefine HAVE_SPLICE
+
 /* Define to 1 if you have the `pwritev2' function. */
 #mesondefine HAVE_PWRITEV2
 #

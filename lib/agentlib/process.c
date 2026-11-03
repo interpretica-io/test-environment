@@ -38,6 +38,7 @@
 #include "te_queue.h"
 #include "te_shell_cmd.h"
 #include "te_sleep.h"
+#include "te_sem.h"
 #include "te_string.h"
 #include "logger_api.h"
 #include "logger_ta.h"
@@ -72,7 +73,7 @@ SLIST_HEAD(, ta_children_dead) ta_children_dead_pool;
 /** Head of dead children list */
 SLIST_HEAD(, ta_children_dead) ta_children_dead_list;
 
-static sem_t sigchld_sem;
+static te_sem sigchld_sem;
 
 /** Initialize ta_children_dead heap. */
 static void
@@ -161,7 +162,7 @@ ta_sigchld_handler(void)
      * so we exit and the moment the sema is released the handler
      * should be called by responsible context
      */
-    if (sem_trywait(&sigchld_sem) < 0)
+    if (sem_trywait(TE_SEM_PTR(&sigchld_sem)) < 0)
     {
         errno = saved_errno;
         return;
@@ -265,7 +266,7 @@ ta_sigchld_handler(void)
     else
         errno = saved_errno;
 
-    sem_post(&sigchld_sem);
+    sem_post(TE_SEM_PTR(&sigchld_sem));
 }
 
 /**
@@ -286,7 +287,7 @@ find_dead_child(pid_t pid, int *status)
     if (!ta_children_dead_heap_inited)
         ta_children_dead_heap_init();
 
-    sem_wait(&sigchld_sem);
+    sem_wait(TE_SEM_PTR(&sigchld_sem));
     for (dead = SLIST_FIRST(&ta_children_dead_list);
          dead != NULL; dead = SLIST_NEXT(dead, links))
     {
@@ -310,7 +311,7 @@ find_dead_child(pid_t pid, int *status)
         }
     }
 
-    sem_post(&sigchld_sem);
+    sem_post(TE_SEM_PTR(&sigchld_sem));
     /* call handler to find out if we have any unhandled signals
      * when sem is locked */
     ta_sigchld_handler();
@@ -534,7 +535,7 @@ ta_kill_and_wait(pid_t pid, int sig, unsigned int timeout_s)
     if (rc != 0 && errno != ESRCH)
     {
         LOG_PRINT("Failed to terminate the process %d: %s",
-                  pid, strerror(errno));
+                  (int)pid, strerror(errno));
         return -1;
     }
 
@@ -547,17 +548,96 @@ ta_kill_and_wait(pid_t pid, int sig, unsigned int timeout_s)
         }
         else if (wpid != 0)
         {
-            LOG_PRINT("Failed to wait for pid %d: %s", pid, strerror(errno));
+            LOG_PRINT("Failed to wait for pid %d: %s", (int)pid,
+                      strerror(errno));
             return -1;
         }
         if (num_attempts > 0)
             te_msleep(delay_ms);
     } while (num_attempts-- > 0);
 
-    LOG_PRINT("Got timeout to wait for pid %d", pid);
+    LOG_PRINT("Got timeout to wait for pid %d", (int)pid);
     return -2;
 }
 
+#ifndef _WIN32
+/**
+ * Bring the child of a fork() into a sane state.
+ *
+ * Both the list of the dead children and the semaphore that guards it
+ * belong to the process that created them. A named semaphore, which is
+ * what te_sem_init() falls back to on Darwin, would otherwise stay
+ * shared with the parent.
+ */
+static void
+ta_children_after_fork(void)
+{
+    te_errno rc;
+
+    ta_children_dead_heap_init();
+
+    (void)te_sem_destroy(&sigchld_sem);
+    rc = te_sem_init(&sigchld_sem, 1);
+    if (rc != 0)
+        LOG_PRINT("Cannot re-initialize sigchld sem after fork(): %s",
+                  te_rc_err2str(rc));
+}
+#endif /* !_WIN32 */
+
+#ifdef _WIN32
+/** Interval between the checks for exited children, in milliseconds */
+#define TA_CHILDREN_REAP_INTERVAL_MS 200
+
+/**
+ * Collect the exited children into the list of dead ones, as the
+ * SIGCHLD handler does on POSIX systems.
+ */
+static void *
+ta_children_reaper(void *arg)
+{
+    UNUSED(arg);
+
+    for (;;)
+    {
+        ta_sigchld_handler();
+        /* te_msleep() logs every call */
+        Sleep(TA_CHILDREN_REAP_INTERVAL_MS);
+    }
+
+    return NULL;
+}
+
+/*
+ * Windows does not notify a process of the exit of its children, so a
+ * thread collects them instead of a SIGCHLD handler. Until then, the
+ * processes TE starts stay waitable.
+ */
+te_errno
+ta_process_mgmt_init(void)
+{
+    pthread_t tid;
+    te_errno rc;
+    int ret;
+
+    rc = te_sem_init(&sigchld_sem, 1);
+    if (rc != 0)
+    {
+        LOG_PRINT("Cannot initialize sigchld sem: %s", te_rc_err2str(rc));
+        return rc;
+    }
+
+    ret = pthread_create(&tid, NULL, ta_children_reaper, NULL);
+    if (ret != 0)
+    {
+        LOG_PRINT("Cannot start the thread collecting exited children: %s",
+                  strerror(ret));
+        return te_rc_os2te(ret);
+    }
+    pthread_detach(tid);
+
+    return 0;
+}
+#else
 te_errno
 ta_process_mgmt_init(void)
 {
@@ -570,11 +650,9 @@ ta_process_mgmt_init(void)
 #endif
     sigemptyset(&sigact.sa_mask);
 
-    if (sem_init(&sigchld_sem, 0, 1) < 0)
-    {
-        rc = te_rc_os2te(errno);
-        LOG_PRINT("Cannot initialize sigchld sem: %s", strerror(errno));
-    }
+    rc = te_sem_init(&sigchld_sem, 1);
+    if (rc != 0)
+        LOG_PRINT("Cannot initialize sigchld sem: %s", te_rc_err2str(rc));
     /* FIXME: Is it used by RPC */
     sigact.sa_handler = (void *)ta_sigchld_handler;
     if (sigaction(SIGCHLD, &sigact, NULL) != 0)
@@ -583,11 +661,12 @@ ta_process_mgmt_init(void)
         LOG_PRINT("Cannot set SIGCHLD action: %s", strerror(errno));
     }
 #ifdef HAVE_PTHREAD_H
-    pthread_atfork(NULL, NULL, ta_children_dead_heap_init);
+    pthread_atfork(NULL, NULL, ta_children_after_fork);
 #endif
 
     return rc;
 }
+#endif /* !_WIN32 */
 
 typedef struct vfork_hook {
     SLIST_ENTRY(vfork_hook) next;    /**< next hook */

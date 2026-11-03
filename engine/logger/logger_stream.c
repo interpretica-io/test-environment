@@ -9,7 +9,14 @@
 
 #define TE_LGR_USER "Log streaming"
 
+#include "te_config.h"
+
+#include <errno.h>
 #include <poll.h>
+#include <fcntl.h>
+#if HAVE_SYS_EVENTFD_H
+#include <sys/eventfd.h>
+#endif
 #include <limits.h>
 #include <jansson.h>
 
@@ -39,15 +46,66 @@ msg_queue_init(msg_queue *queue)
     TAILQ_INIT(&queue->items);
     queue->shutdown = false;
     pthread_mutex_init(&queue->mutex, NULL);
+#if HAVE_SYS_EVENTFD_H
     queue->eventfd = eventfd(0, 0);
+    if (queue->eventfd < 0)
+        return TE_OS_RC(TE_LOGGER, errno);
+    queue->notify_fd = queue->eventfd;
+#else
+    {
+        int fds[2];
+
+        /*
+         * A full pipe is readable all the same, so the producers do not
+         * wait for the consumer
+         */
+        if (pipe(fds) != 0)
+            return TE_OS_RC(TE_LOGGER, errno);
+        if (fcntl(fds[0], F_SETFL, O_NONBLOCK) != 0 ||
+            fcntl(fds[1], F_SETFL, O_NONBLOCK) != 0)
+        {
+            te_errno rc = TE_OS_RC(TE_LOGGER, errno);
+
+            close(fds[0]);
+            close(fds[1]);
+            return rc;
+        }
+        queue->eventfd = fds[0];
+        queue->notify_fd = fds[1];
+    }
+#endif
     return 0;
+}
+
+/* Wake the consumer up */
+static void
+msg_queue_notify(msg_queue *queue)
+{
+    uint64_t inc = 1;
+
+    (void)write(queue->notify_fd, &inc, sizeof(inc));
+}
+
+/* Take the wake-ups the producers have made */
+static void
+msg_queue_drain(msg_queue *queue)
+{
+#if HAVE_SYS_EVENTFD_H
+    uint64_t cnt;
+
+    (void)read(queue->eventfd, &cnt, sizeof(cnt));
+#else
+    char buf[256];
+
+    while (read(queue->eventfd, buf, sizeof(buf)) > 0)
+        ;
+#endif
 }
 
 /* See description in logger_stream.h */
 te_errno
 msg_queue_post(msg_queue *queue, const char *buf, size_t len)
 {
-    uint64_t      inc;
     te_errno      rc;
     refcnt_buffer *item;
 
@@ -68,8 +126,7 @@ msg_queue_post(msg_queue *queue, const char *buf, size_t len)
     TAILQ_INSERT_TAIL(&queue->items, item, links);
     pthread_mutex_unlock(&queue->mutex);
 
-    inc = 1;
-    write(queue->eventfd, &inc, sizeof(inc));
+    msg_queue_notify(queue);
     return 0;
 }
 
@@ -78,10 +135,8 @@ void
 msg_queue_extract(msg_queue *queue, refcnt_buffer_list *list,
                   bool *shutdown)
 {
-    uint64_t cnt;
-
     pthread_mutex_lock(&queue->mutex);
-    read(queue->eventfd, &cnt, sizeof(cnt));
+    msg_queue_drain(queue);
     if (list != NULL)
     {
         *list = queue->items;
@@ -96,14 +151,11 @@ msg_queue_extract(msg_queue *queue, refcnt_buffer_list *list,
 void
 msg_queue_shutdown(msg_queue *queue)
 {
-    uint64_t inc;
-
     pthread_mutex_lock(&queue->mutex);
     queue->shutdown = true;
     pthread_mutex_unlock(&queue->mutex);
 
-    inc = 1;
-    write(queue->eventfd, &inc, sizeof(inc));
+    msg_queue_notify(queue);
 }
 
 /* See description in logger_stream.h */
@@ -125,6 +177,8 @@ msg_queue_fini(msg_queue *queue)
 
     pthread_mutex_destroy(&queue->mutex);
     close(queue->eventfd);
+    if (queue->notify_fd != queue->eventfd)
+        close(queue->notify_fd);
     return 0;
 }
 

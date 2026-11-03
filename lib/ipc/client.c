@@ -236,7 +236,7 @@ get_pool_item_by_name(struct ipc_client *ipcc, const char *name)
          parent = &ipccs->next, ipccs = ipccs->next)
     {
 #ifdef TE_IPC_AF_UNIX
-        if (strcmp(ipccs->sa.sun_path + 1, name) == 0)
+        if (strcmp(ipc_sun_name(&ipccs->sa), name) == 0)
 #else
         if (strcmp(ipccs->name, name) == 0)
 #endif
@@ -250,8 +250,12 @@ get_pool_item_by_name(struct ipc_client *ipcc, const char *name)
     (*parent) = TE_ALLOC(sizeof(struct ipc_client_server));
 
 #ifdef TE_IPC_AF_UNIX
-    (*parent)->sa.sun_family = AF_UNIX;
-    strcpy((*parent)->sa.sun_path + 1, name);
+    if (ipc_sun_set(&(*parent)->sa, name) != 0)
+    {
+        free(*parent);
+        *parent = NULL;
+        return NULL;
+    }
     (*parent)->sa_len = sizeof(struct sockaddr_un);
 #else
     strcpy((*parent)->name, name);
@@ -324,8 +328,8 @@ get_datagram(struct ipc_client *ipcc,
     TAILQ_FOREACH(ptr, &ipcc->dgram.datagrams, links)
     {
         if (pool_item == NULL ||
-            ((pool_item->sa_len == ptr->sa_len) &&
-             (memcmp(&pool_item->sa, &ptr->sa, pool_item->sa_len) == 0)))
+            strcmp(ipc_sun_name(&pool_item->sa),
+                   ipc_sun_name(&ptr->sa)) == 0)
         {
             assert(ptr->octets <= IPC_SEGMENT_SIZE);
 
@@ -335,7 +339,7 @@ get_datagram(struct ipc_client *ipcc,
             {
                 /* Search for pool item */
                 pool_item = get_pool_item_by_name(ipcc,
-                                                  ptr->sa.sun_path + 1);
+                                                  ipc_sun_name(&ptr->sa));
                 if (pool_item == NULL)
                 {
                     return NULL;
@@ -359,7 +363,7 @@ get_datagram(struct ipc_client *ipcc,
                     printf("%c|", ch);
                 }
             }
-            printf("<\n from %s (poped)\n", ptr->sa.sun_path + 1);
+            printf("<\n from %s (poped)\n", ipc_sun_name(&ptr->sa));
 #endif
 
             /* Copy data */
@@ -399,7 +403,7 @@ get_datagram(struct ipc_client *ipcc,
         }
 
         /* Find or assign a new item in pool */
-        pool_item = get_pool_item_by_name(ipcc, sa.sun_path + 1);
+        pool_item = get_pool_item_by_name(ipcc, ipc_sun_name(&sa));
         if (pool_item == NULL)
         {
             return NULL;
@@ -437,8 +441,11 @@ get_datagram(struct ipc_client *ipcc,
                 return NULL;
             }
 
-            if ((sa_len != pool_item->sa_len) ||
-                memcmp(&sa,&pool_item->sa, sa_len))
+            /*
+             * Compare the names: the address recvfrom() gives may be
+             * shorter than the one the client has made, as on macOS
+             */
+            if (strcmp(ipc_sun_name(&sa), ipc_sun_name(&pool_item->sa)) != 0)
             {
                 /*
                  * While we trying to receive rest of the partial
@@ -610,22 +617,17 @@ ipc_init_client(const char *name, bool conn,
 
         /* Assign a name to socket */
         {
-            time_t now;
-            struct sockaddr_un addr;
+            char sname[UNIX_PATH_MAX];
 
-            addr.sun_family = AF_UNIX;
-            memset(addr.sun_path, 0, UNIX_PATH_MAX);
-            now = time(NULL);
-            snprintf(addr.sun_path + 1, UNIX_PATH_MAX - 1,
-                     "%s_%ld", name, now);
-
-            if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) != 0)
+            snprintf(sname, sizeof(sname), "%s_%ld", name,
+                     (long)time(NULL));
+            rc = ipc_sun_bind(s, sname, false);
+            if (rc != 0)
             {
-                rc = errno;
                 fprintf(stderr, "IPC client '%s' init failed: bind(): %s\n",
-                        name, strerror(rc));
+                        name, te_rc_err2str(rc));
                 close(s);
-                return TE_OS_RC(TE_IPC, rc);
+                return rc;
             }
         }
 #endif /* TE_IPC_AF_UNIX */
@@ -683,6 +685,10 @@ ipc_close_client(struct ipc_client *ipcc)
     }
     else
     {
+#ifdef TE_IPC_AF_UNIX
+        if (ipcc->dgram.socket >= 0)
+            ipc_sun_unlink(ipcc->dgram.socket);
+#endif
         if (ipcc->dgram.socket >= 0 && close(ipcc->dgram.socket) < 0)
         {
             fprintf(stderr, "%s(): close() failed: %s",
@@ -720,9 +726,8 @@ ipc_dgram_send_message(struct ipc_client *ipcc, const char *server_name,
         return TE_RC(TE_IPC, TE_EINVAL);
     }
 
-    memset(&dst, 0, sizeof(dst));
-    dst.sun_family = AF_UNIX;
-    strcpy(dst.sun_path + 1, server_name);
+    if (ipc_sun_set(&dst, server_name) != 0)
+        return TE_RC(TE_IPC, TE_ENAMETOOLONG);
 
     ipch = (struct ipc_dgram_header *)(ipcc->dgram.tmp_buffer);
     memset(ipch, 0, sizeof(struct ipc_dgram_header));
@@ -996,7 +1001,7 @@ ipc_dgram_receive_answer(struct ipc_client *ipcc, const char *server_name,
                     printf("Header changed: %d != %d\n", l2,
                            ((struct ipc_dgram_header*)server->
                                 dgram.buffer)->length);
-                    printf("author: %s\n", server->sa.sun_path+1);
+                    printf("author: %s\n", ipc_sun_name(&server->sa));
 #endif
                     return TE_RC(TE_IPC, TE_ESYNCFAILED);
                 }

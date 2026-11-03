@@ -750,6 +750,14 @@ struct {                                                                \
 
 #endif /* !CIRCLEQ_HEAD */
 
+/* Darwin provides circular queues without the reverse traversal */
+#ifndef CIRCLEQ_FOREACH_REVERSE
+#define CIRCLEQ_FOREACH_REVERSE(var, head, field)                       \
+    for ((var) = (head)->cqh_last;                                      \
+         (var) != (const void *)(head);                                 \
+         (var) = (var)->field.cqe_prev)
+#endif
+
 #ifndef CIRCLEQ_REPLACE
 #define CIRCLEQ_REPLACE(head, elm, elm2, field) \
     do {                                                  \

@@ -213,6 +213,7 @@ pid_t
 te_file_read_pid(const char *pid_path)
 {
     pid_t       pid = -1;
+    int         value;
     FILE       *f;
 
     assert(pid_path != NULL);
@@ -221,11 +222,13 @@ te_file_read_pid(const char *pid_path)
     if (f == NULL)
         return -1;
 
-    if (fscanf(f, "%d", &pid) != 1)
+    /* pid_t is wider than int on some systems, e.g. 64-bit Windows */
+    if (fscanf(f, "%d", &value) != 1)
     {
         fclose(f);
         return -1;
     }
+    pid = value;
 
     fclose(f);
 
@@ -410,9 +413,11 @@ te_file_read_string(te_string *dest, bool binary,
         goto out;
     }
 
+#ifdef HAVE_STRUCT_STAT_ST_BLOCKS
     /* Some filesystems, e.g. sysfs, do not report file size correctly. */
     if (st.st_blocks == 0 && st.st_size > 0)
         st.st_size = 0;
+#endif
 
     if (maxsize != 0 && st.st_size > maxsize)
     {
