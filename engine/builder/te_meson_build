@@ -1120,18 +1120,28 @@ do_build() {
         # Make sure that log files have been created by the job
         wait_for_log_files "$log_pfx" "$p"
 
-        tail -f -c +1 --pid=${pid} "${log_pfx}.${p}.1" &
-        local pid_t1=$!
-        tail -f -c +1 --pid=${pid} "${log_pfx}.${p}.2" >&2 &
-        local pid_t2=$!
-
         local rc=0
-        wait "$pid" || rc=$?
-
         local rc_t1=0
-        wait "$pid_t1" || rc_t1=$?
         local rc_t2=0
-        wait "$pid_t2" || rc_t2=$?
+
+        if tail --pid=$$ -c 0 /dev/null 2>/dev/null ; then
+            tail -f -c +1 --pid=${pid} "${log_pfx}.${p}.1" &
+            local pid_t1=$!
+            tail -f -c +1 --pid=${pid} "${log_pfx}.${p}.2" >&2 &
+            local pid_t2=$!
+
+            wait "$pid" || rc=$?
+
+            wait "$pid_t1" || rc_t1=$?
+            wait "$pid_t2" || rc_t2=$?
+        else
+            # The tail of Darwin and the BSDs has no --pid: show the
+            # logs when the build is over
+            wait "$pid" || rc=$?
+
+            cat "${log_pfx}.${p}.1" || rc_t1=$?
+            cat "${log_pfx}.${p}.2" >&2 || rc_t2=$?
+        fi
 
         if test $rc -eq 0 -a $rc_t1 -eq 0 -a $rc_t2 -eq 0; then
             echo "Platform ${p} build - pass" >&2
