@@ -350,6 +350,32 @@ llvm_mingw_cross_file() {
 }
 
 #######################################
+# Report the host CPU and system of the cross file for a platform of
+# macOS.
+#
+# clang reports arm64-apple-macosx11.0.0 for arm64 macOS. Runs under
+# with_builder() as mingw_cross_system().
+# Globals:
+#   TE_BUILD
+#   WORK
+# Outputs:
+#   Writes the 'cpu_family' and 'system' lines of the cross file to
+#   stdout, joined by commas.
+#######################################
+darwin_cross_file() {
+    local cc="${WORK}/darwin-clang"
+
+    printf '#!/bin/sh\necho arm64-apple-macosx11.0.0\n' >"${cc}"
+    chmod +x "${cc}"
+    mkdir -p "${TE_BUILD}"
+
+    generate_config_file macplat "--host=aarch64-apple-darwin CC=${cc}"
+    # shellcheck disable=SC2154
+    grep -E '^(cpu_family|system) ' "${TE_BS_MESON_macplat_CROSS_FILE}" |
+        sort | paste -sd, -
+}
+
+#######################################
 # Run every scenario and report the outcome.
 #
 # The configurations are heredocs, so their bodies and terminators
@@ -503,6 +529,10 @@ EOF
     step "A platform of llvm-mingw takes its nm from the host triplet"
     expect_eq "the cross file" "$(with_builder llvm_mingw_cross_file)" \
               "cpu_family = 'aarch64',nm = 'aarch64-w64-mingw32-nm',system = 'windows'"
+
+    step "A platform of macOS is a Darwin host with an aarch64 CPU"
+    expect_eq "the cross file" "$(with_builder darwin_cross_file)" \
+              "cpu_family = 'aarch64',system = 'darwin'"
 
     step "A name that would break the option encoding is refused"
     for bad in "with:colon" "with,comma" ; do

@@ -717,6 +717,16 @@ generate_config_file() {
         *-mingw32*) system=windows ;;
     esac
 
+    # clang of Apple targets reports arm64-apple-macosx11.0.0 or
+    # aarch64-apple-darwin: the system is not the next to last field,
+    # and meson calls the CPU of arm64 aarch64
+    case "${dumpmachine}" in
+        *-apple-darwin*|*-apple-macos*)
+            system=darwin
+            test "${cpu_family}" != arm64 || cpu_family=aarch64
+            ;;
+    esac
+
     test -z "$cpp" && cpp="${host}-cpp"
     test -z "$ld" && ld="${host}-ld"
     test -z "$ar" && ar="${host}-ar"
