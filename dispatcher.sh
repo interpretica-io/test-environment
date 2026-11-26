@@ -1379,7 +1379,7 @@ myecho() {
     fi
 }
 
-if test -n "${DAEMON}" ; then TE_ID=${DAEMON} ; else TE_ID=$$ ; fi
+if test -n "${DAEMON}" ; then TE_ID=${DAEMON} ; elif test -n "${TE_ID}" ; then : ; else TE_ID=$$ ; fi
 export TE_RCF="TE_RCF_${TE_ID}"
 export TE_LOGGER="TE_LOGGER_${TE_ID}"
 export TE_CS="TE_CS_${TE_ID}"
