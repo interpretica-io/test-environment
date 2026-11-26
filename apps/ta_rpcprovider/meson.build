@@ -17,6 +17,18 @@ ld_args = get_option('te_ldflags')
 te_libdir = get_option('te_libdir')
 te_libs = get_option('te_libs')
 
+# Cross-build to a MinGW Windows agent: the platform compat layer
+# (POSIX-on-Windows shims) must be force-included here too, since this
+# app is configured by its own meson that does not inherit the platform
+# cflags. _FILE_OFFSET_BITS=64 (meson default) is undone so TARPC_FUNC
+# name-pasting is not broken by the LFS lseek->lseek64 renames.
+if host_machine.system() == 'windows'
+    c_args += [ '-include', '/home/mmenshikov/mingw-rpc/types_compat.h',
+                '-I/home/mmenshikov/mingw-rpc/include',
+                '-D_GNU_SOURCE', '-DRPC_MAXDATASIZE=9000',
+                '-U_FILE_OFFSET_BITS', '-Wno-error' ]
+endif
+
 #
 # Prepare linker arguments
 #
@@ -29,6 +41,15 @@ endforeach
 
 # Use shared external (system) libraries and only if are needed
 ld_args += [ '-Wl,-Bdynamic', '-Wl,--as-needed' ]
+
+# MinGW Windows agent: the compat runtime (librt.a: POSIX shims + the
+# strong RPC _svc stubs for syscalls absent on Windows) and winsock.
+if host_machine.system() == 'windows'
+    ld_args += [ '-L/home/mmenshikov/mingw-rpc/lib',
+                 '-Wl,--no-as-needed',
+                 '-lrt', '-lrpc', '-lws2_32',
+                 '/usr/x86_64-w64-mingw32/lib/libpcre2-8.a' ]
+endif
 
 # External dependencies
 deps = []
@@ -68,8 +89,13 @@ endforeach
 
 te_generate_symtbl = find_program('te_generate_symtbl.sh')
 
-# FIXME: incompatible with cross-build
-nm = find_program('nm')
+# The symbol table must be read with the target's nm when cross-building
+# (host nm mangles PE/COFF symbol names differently).
+if host_machine.system() == 'windows'
+    nm = find_program('x86_64-w64-mingw32-nm')
+else
+    nm = find_program('nm')
+endif
 
 symtbl = custom_target('gen-symtbl', output: 'symtbl.c', capture: true,
                        input: [ symtbl_libs ],
