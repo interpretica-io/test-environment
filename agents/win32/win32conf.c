@@ -9,14 +9,14 @@
 
 #define TE_LGR_USER     "Windows Conf"
 
-#include "windows.h"
-#include "w32api/iphlpapi.h"
-#undef _SYS_TYPES_FD_SET
-#include <w32api/winsock2.h>
-#include "te_defs.h"
-#include "iprtrmib.h"
+#include "te_config.h"
 
-#undef ERROR
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <iphlpapi.h>
+#include <iprtrmib.h>
+
+#include "te_defs.h"
 
 #include "te_alloc.h"
 #include "te_errno.h"
@@ -27,6 +27,7 @@
 #include "rcf_pch.h"
 #include "rcf_pch_ta_cfg.h"
 #include "cs_common.h"
+#include "agentlib.h"
 
 #ifdef HAVE_SYS_UTSNAME_H
 #include <sys/utsname.h>
@@ -106,6 +107,9 @@ extern char *ta_name;
 #define DRIVER_VERSION_2_1 1
 #define DRIVER_VERSION_2_2 2
 #define DRIVER_VERSION_2_3 3
+
+static DWORD ifname2ifindex(const char *ifname);
+char *ifindex2ifname(DWORD ifindex);
 
 /*
  * Access routines prototypes (comply to procedure types
@@ -3048,7 +3052,7 @@ route_get(unsigned int gid, const char *oid, char *value,
     if (attr.dst.ss_family == AF_INET)
     {
         addr = inet_ntoa(SIN(&attr.gw)->sin_addr);
-        memcpy(value, addr, strlen(addr));
+        strcpy(value, addr);
     }
     else
     {
@@ -3076,7 +3080,8 @@ route_set(unsigned int gid, const char *oid, const char *value,
 {
     UNUSED(oid);
 
-    return ta_obj_value_set(TA_OBJ_TYPE_ROUTE, route_name, value, gid);
+    return ta_obj_value_set(TA_OBJ_TYPE_ROUTE, route_name, value, gid,
+                            route_load_attrs);
 }
 
 /**
