@@ -34,13 +34,24 @@ endif
 #
 
 # Use static implementation of TE libraries
-ld_args += [ '-L' + te_libdir, '-Wl,-Bstatic' ]
-foreach l : te_libs
-    ld_args += [ '-l' + l ]
-endforeach
+if host_machine.system() == 'darwin'
+    # The ld of macOS understands neither -Bstatic/-Bdynamic nor
+    # --as-needed. Link the TE libraries by the full path of their
+    # static archive to force static linkage; its ld resolves the
+    # circular references between them without a group. System
+    # libraries keep linking dynamically as usual.
+    foreach l : te_libs
+        ld_args += [ join_paths(te_libdir, 'lib' + l + '.a') ]
+    endforeach
+else
+    ld_args += [ '-L' + te_libdir, '-Wl,-Bstatic' ]
+    foreach l : te_libs
+        ld_args += [ '-l' + l ]
+    endforeach
 
-# Use shared external (system) libraries and only if are needed
-ld_args += [ '-Wl,-Bdynamic', '-Wl,--as-needed' ]
+    # Use shared external (system) libraries and only if are needed
+    ld_args += [ '-Wl,-Bdynamic', '-Wl,--as-needed' ]
+endif
 
 # MinGW Windows agent: the compat runtime (librt.a: POSIX shims + the
 # strong RPC _svc stubs for syscalls absent on Windows) and winsock.
@@ -97,9 +108,19 @@ else
     nm = find_program('nm')
 endif
 
+# Mach-O prefixes every C symbol with an underscore, which the symbol
+# table generator has to strip off to get the name the sources use.
+# The engine's own meson.build does the same for its symbol tables.
+if host_machine.system() == 'darwin'
+    te_symtbl_args = [ '--strip-underscore' ]
+else
+    te_symtbl_args = []
+endif
+
 symtbl = custom_target('gen-symtbl', output: 'symtbl.c', capture: true,
                        input: [ symtbl_libs ],
-                       command: [ te_generate_symtbl, nm, '@INPUT@' ]
+                       command: [ te_generate_symtbl, nm, te_symtbl_args,
+                                  '@INPUT@' ]
                       )
 #
 # Build rpc provider
